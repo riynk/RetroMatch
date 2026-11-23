@@ -37,7 +37,7 @@ This is a source-level audit. A successful CI build and a user-confirmed normal 
 2. Separate metadata domain and repository logic from the legacy editor UI; define backup/undo and batch-edit semantics before expanding write capabilities.
 3. Review and selectively port useful LocalPlayer interaction patterns into the existing navigation and player screens; do not introduce another player service or library.
 4. Decide whether RetroMatch's product scope includes only Android Auto media browsing/drive controls or also a distinct map/navigation surface. Current source evidence supports the former, not turn-by-turn navigation.
-5. Add focused unit tests for the metadata temp-file naming/uniqueness behavior and the empty tag-preparation result path.
+5. Add a testable boundary for the empty tag-preparation UI path; unique metadata temp-file naming is now covered by JVM unit tests.
 6. Run CI on the audit-fix commit, then perform device validation for playback, media controls, LRCLIB network outcomes, LRC save/reopen/seek, metadata consent cancellation, and duplicate-basename batch edits.
 
 ## Verification boundary
