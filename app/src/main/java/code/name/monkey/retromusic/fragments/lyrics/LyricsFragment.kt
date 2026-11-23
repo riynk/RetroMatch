@@ -55,7 +55,6 @@ import kotlinx.coroutines.launch
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import java.io.File
-import java.io.FileOutputStream
 import java.util.*
 import org.koin.android.ext.android.inject
 import kotlin.collections.set
@@ -70,9 +69,10 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     private lateinit var normalLyricsLauncher: ActivityResultLauncher<IntentSenderRequest>
     private lateinit var editSyncedLyricsLauncher: ActivityResultLauncher<IntentSenderRequest>
 
-    private lateinit var cacheFile: File
-    private var syncedLyrics: String = ""
-    private lateinit var syncedFileUri: Uri
+    private var pendingNormalLyricsCacheFile: File? = null
+    private var pendingNormalLyricsUri: Uri? = null
+    private var pendingSyncedLyrics: String? = null
+    private var pendingSyncedFileUri: Uri? = null
 
     private var lyricsType: LyricsType = LyricsType.NORMAL_LYRICS
 
@@ -93,19 +93,26 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
         // Normal lyrics launcher
         normalLyricsLauncher =
             registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-                if (it.resultCode == Activity.RESULT_OK) {
-                    FileUtils.copyFileToUri(requireContext(), cacheFile, song.uri)
+                val targetUri = pendingNormalLyricsUri
+                val sourceFile = pendingNormalLyricsCacheFile
+                if (it.resultCode == Activity.RESULT_OK && targetUri != null && sourceFile != null) {
+                    FileUtils.copyFileToUri(requireContext(), sourceFile, targetUri)
                 }
+                pendingNormalLyricsUri = null
+                pendingNormalLyricsCacheFile = null
             }
         editSyncedLyricsLauncher =
             registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-                if (it.resultCode == Activity.RESULT_OK) {
-                    requireContext().contentResolver.openOutputStream(syncedFileUri)?.use { os ->
-                        (os as FileOutputStream).channel.truncate(0)
-                        os.write(syncedLyrics.toByteArray())
-                        os.flush()
+                val targetUri = pendingSyncedFileUri
+                val lyricsToWrite = pendingSyncedLyrics
+                if (it.resultCode == Activity.RESULT_OK && targetUri != null && lyricsToWrite != null) {
+                    requireContext().contentResolver.openOutputStream(targetUri, "wt")?.use { output ->
+                        output.write(lyricsToWrite.toByteArray(Charsets.UTF_8))
+                        output.flush()
                     }
                 }
+                pendingSyncedFileUri = null
+                pendingSyncedLyrics = null
             }
     }
 
@@ -224,11 +231,12 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 fieldKeyValueMap[FieldKey.LYRICS] = input.toString()
                 viewLifecycleOwner.lifecycleScope.launch {
                     if (VersionUtils.hasR()) {
-                        cacheFile = TagWriter.writeTagsToFilesR(
+                        pendingNormalLyricsCacheFile = TagWriter.writeTagsToFilesR(
                             requireContext(), AudioTagInfo(
                                 listOf(song.data), fieldKeyValueMap, null
                             )
                         )[0]
+                        pendingNormalLyricsUri = song.uri
                         val pendingIntent =
                             MediaStore.createWriteRequest(
                                 requireContext().contentResolver,
@@ -268,27 +276,29 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 inputType = InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_CLASS_TEXT
             ) { _, input ->
                 if (VersionUtils.hasR()) {
-                    syncedLyrics = input.toString()
+                    val lyricsToSave = input.toString()
                     val lrcFile = LyricUtil.getSyncedLyricsFile(song)
                     if (lrcFile?.exists() == true) {
-                        syncedFileUri =
+                        pendingSyncedLyrics = lyricsToSave
+                        pendingSyncedFileUri =
                             UriUtil.getUriFromPath(requireContext(), lrcFile.absolutePath)
                         val pendingIntent =
                             MediaStore.createWriteRequest(
                                 requireContext().contentResolver,
-                                listOf(syncedFileUri)
+                                listOf(pendingSyncedFileUri!!)
                             )
                         editSyncedLyricsLauncher.launch(
                             IntentSenderRequest.Builder(pendingIntent).build()
                         )
                     } else {
                         val fieldKeyValueMap = EnumMap<FieldKey, String>(FieldKey::class.java)
-                        fieldKeyValueMap[FieldKey.LYRICS] = input.toString()
+                        fieldKeyValueMap[FieldKey.LYRICS] = lyricsToSave
                         viewLifecycleOwner.lifecycleScope.launch {
-                            cacheFile = TagWriter.writeTagsToFilesR(
+                            pendingNormalLyricsCacheFile = TagWriter.writeTagsToFilesR(
                                 requireContext(),
                                 AudioTagInfo(listOf(song.data), fieldKeyValueMap, null)
                             )[0]
+                            pendingNormalLyricsUri = song.uri
                             val pendingIntent = MediaStore.createWriteRequest(
                                 requireContext().contentResolver,
                                 listOf(song.uri)
