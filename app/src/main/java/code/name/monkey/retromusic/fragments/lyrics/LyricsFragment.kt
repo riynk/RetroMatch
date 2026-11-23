@@ -249,7 +249,11 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                             requireContext(), AudioTagInfo(
                                 listOf(song.data), fieldKeyValueMap, null
                             )
-                        )[0]
+                        ).firstOrNull()
+                        if (pendingNormalLyricsCacheFile == null) {
+                            Toast.makeText(requireContext(), R.string.could_not_write_tags_to_file, Toast.LENGTH_LONG).show()
+                            return@launch
+                        }
                         pendingNormalLyricsUri = song.uri
                         val pendingIntent =
                             MediaStore.createWriteRequest(
@@ -322,7 +326,11 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                             pendingNormalLyricsCacheFile = TagWriter.writeTagsToFilesR(
                                 requireContext(),
                                 AudioTagInfo(listOf(song.data), fieldKeyValueMap, null)
-                            )[0]
+                            ).firstOrNull()
+                            if (pendingNormalLyricsCacheFile == null) {
+                                Toast.makeText(requireContext(), R.string.could_not_write_tags_to_file, Toast.LENGTH_LONG).show()
+                                return@launch
+                            }
                             pendingNormalLyricsUri = song.uri
                             val pendingIntent = MediaStore.createWriteRequest(
                                 requireContext().contentResolver,
