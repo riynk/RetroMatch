@@ -34,7 +34,7 @@ internal data class LrcLibTrackDto(
 )
 
 internal object LyricsText {
-    private val timestampPattern = Regex("""\\[\\d+:\\d{2}(?:\\.\\d{1,3})?]""")
+    private val timestampPattern = Regex("""\[\d+:\d{2}(?:\.\d{1,3})?]""")
 
     fun hasTimestamps(value: String): Boolean = timestampPattern.containsMatchIn(value)
 
@@ -80,7 +80,7 @@ data class FetchedLyrics(
 ) {
     /** Prefer synchronized lyrics; fall back to plain text. */
     val preferredLyrics: String
-        get() = syncedLyrics.takeIf { Regex("\\[\\d{1,3}:\\d{2}(?:\\.\\d{1,3})?]").containsMatchIn(it) } ?: plainLyrics
+        get() = syncedLyrics.takeIf { LyricsText.hasTimestamps(it) } ?: plainLyrics
 
     val hasLyrics: Boolean
         get() = preferredLyrics.isNotBlank()
