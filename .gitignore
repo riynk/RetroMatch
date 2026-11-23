@@ -1,0 +1,71 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+lyric.json
+lyric2_bad.json
+lyric2.json
+user_ttml_app_out.xml
+lyrio/lyric_saved_fixed.xml
+lyrio/lyric_saved.xml
+lyrio/lyric2_postcheck.xml
+lyrio/lyric2_saved_fixed.xml
+lyrio/lyric2_saved.xml
+lyrio/user_ttml_saved_test.xml
+lyrio/build/lyrics_curl_verbose.txt
+lyrio/build/lyrics_response.txt
+lyrio/build/lyrics_headers.txt
+blink-182 - All The Small Things.ttml.xml
+lyric2_saved.xml
+android/app/.project
+android/.project
+lyric3.json
+lyric3_saved.xml
+lyric2_saved_test5.xml
+lyric2_saved_test4.xml
+lyric2_saved_test3.xml
+lyric2_saved_test2.xml
+lyric2_saved_test.xml
+lyric2_saved_experimental.xml
+lyric2_processed.ttml
