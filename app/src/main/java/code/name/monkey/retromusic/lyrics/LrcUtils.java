@@ -37,9 +37,9 @@ import java.util.regex.Pattern;
 /** 工具类 */
 class LrcUtils {
   private static final Pattern PATTERN_LINE =
-      Pattern.compile("((\\[\\d\\d:\\d\\d\\.\\d{2,3}\\])+)(.+)");
+      Pattern.compile("((?:\\[\\d+:\\d{2}(?:\\.\\d{1,3})?\\])+)(.*)");
   private static final Pattern PATTERN_TIME =
-      Pattern.compile("\\[(\\d\\d):(\\d\\d)\\.(\\d{2,3})\\]");
+      Pattern.compile("\\[(\\d+):(\\d{2})(?:\\.(\\d{1,3}))?\\]");
 
   /** 从文件解析双语歌词 */
   static List<LrcEntry> parseLrc(File[] lrcFiles) {
@@ -186,13 +186,23 @@ class LrcUtils {
     while (timeMatcher.find()) {
       long min = Long.parseLong(timeMatcher.group(1));
       long sec = Long.parseLong(timeMatcher.group(2));
-      String milString = timeMatcher.group(3);
-      long mil = Long.parseLong(milString);
-      // 如果毫秒是两位数，需要乘以10
-      if (milString.length() == 2) {
-        mil = mil * 10;
+      if (sec > 59) {
+        continue;
       }
-      long time = min * DateUtils.MINUTE_IN_MILLIS + sec * DateUtils.SECOND_IN_MILLIS + mil;
+      String fraction = timeMatcher.group(3);
+      long millis = 0;
+      if (fraction != null) {
+        millis = Long.parseLong(fraction);
+        if (fraction.length() == 1) {
+          millis *= 100;
+        } else if (fraction.length() == 2) {
+          millis *= 10;
+        }
+      }
+      long time =
+          min * DateUtils.MINUTE_IN_MILLIS
+              + sec * DateUtils.SECOND_IN_MILLIS
+              + millis;
       entryList.add(new LrcEntry(time, text));
     }
     return entryList;
