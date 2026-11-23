@@ -20,9 +20,9 @@ android {
             useSupportLibrary = true
         }
 
-        applicationId = namespace
-        versionCode = 10703
-        versionName = "7.0.3"
+        applicationId = "app.retromatch.player"
+        versionCode = 1
+        versionName = "0.1.0"
 
         buildConfigField("String", "GOOGLE_PLAY_LICENSING_KEY", "\"${getProperty(getProperties("../public.properties"), "GOOGLE_PLAY_LICENSE_KEY")}\"")
     }
