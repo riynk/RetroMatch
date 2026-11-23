@@ -331,7 +331,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                     Toast.makeText(requireContext(), R.string.lyrics_not_found, Toast.LENGTH_LONG).show()
                     return@launch
                 }
-                showFetchedLyricsPreview(fetched)
+                showFetchedLyricsPreview(requestedSong, fetched)
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -357,17 +357,23 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
             .setMessage(details)
             .setPositiveButton(R.string.save) { _, _ ->
                 if (isSynced) {
-                    LyricUtil.writeLrc(requestedSongForPreview(), fetched.preferredLyrics)
-                    loadLyrics()
+                    if (MusicPlayerRemote.currentSong.id != requestedSong.id) {
+                        Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
+                    } else {
+                        LyricUtil.writeLrc(requestedSong, fetched.preferredLyrics)
+                        loadLyrics()
+                    }
                 } else {
-                    editNormalLyrics(fetched.preferredLyrics)
+                    if (MusicPlayerRemote.currentSong.id == requestedSong.id) {
+                        editNormalLyrics(fetched.preferredLyrics)
+                    } else {
+                        Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
-
-    private fun requestedSongForPreview(): Song = song
 
 
     private fun loadNormalLyrics() {
