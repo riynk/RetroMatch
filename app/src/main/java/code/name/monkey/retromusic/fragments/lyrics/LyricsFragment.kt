@@ -97,7 +97,12 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 val sourceFile = pendingNormalLyricsCacheFile
                 if (it.resultCode == Activity.RESULT_OK && targetUri != null && sourceFile != null) {
                     FileUtils.copyFileToUri(requireContext(), sourceFile, targetUri)
+                    if (_binding != null) {
+                        updateTitleSong()
+                        loadLyrics()
+                    }
                 }
+                sourceFile?.delete()
                 pendingNormalLyricsUri = null
                 pendingNormalLyricsCacheFile = null
             }
@@ -106,9 +111,18 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 val targetUri = pendingSyncedFileUri
                 val lyricsToWrite = pendingSyncedLyrics
                 if (it.resultCode == Activity.RESULT_OK && targetUri != null && lyricsToWrite != null) {
-                    requireContext().contentResolver.openOutputStream(targetUri, "wt")?.use { output ->
-                        output.write(lyricsToWrite.toByteArray(Charsets.UTF_8))
-                        output.flush()
+                    val outputStream = requireContext().contentResolver.openOutputStream(targetUri, "wt")
+                    if (outputStream != null) {
+                        outputStream.use { output ->
+                            output.write(lyricsToWrite.toByteArray(Charsets.UTF_8))
+                            output.flush()
+                        }
+                        if (_binding != null) {
+                            updateTitleSong()
+                            loadLyrics()
+                        }
+                    } else {
+                        Toast.makeText(requireContext(), R.string.could_not_write_tags_to_file, Toast.LENGTH_LONG).show()
                     }
                 }
                 pendingSyncedFileUri = null
@@ -252,6 +266,10 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                                 listOf(song.data), fieldKeyValueMap, null
                             )
                         )
+                        if (_binding != null) {
+                            updateTitleSong()
+                            loadLyrics()
+                        }
                     }
                 }
             }
@@ -281,6 +299,10 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                     if (lrcFile?.exists() == true && LyricUtil.isManagedLyricsFile(lrcFile)) {
                         // App-specific files are writable without a MediaStore consent request.
                         LyricUtil.writeLrc(song, lyricsToSave)
+                        if (_binding != null) {
+                            updateTitleSong()
+                            loadLyrics()
+                        }
                     } else if (lrcFile?.exists() == true) {
                         pendingSyncedLyrics = lyricsToSave
                         val targetUri = UriUtil.getUriFromPath(requireContext(), lrcFile.absolutePath)
@@ -314,6 +336,10 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                     }
                 } else {
                     LyricUtil.writeLrc(song, input.toString())
+                    if (_binding != null) {
+                        updateTitleSong()
+                        loadLyrics()
+                    }
                 }
             }
             positiveButton(res = R.string.save) {
