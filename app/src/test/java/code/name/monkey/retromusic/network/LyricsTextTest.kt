@@ -34,6 +34,7 @@ class LyricsTextTest {
     @Test
     fun timestampDetectionRejectsMalformedTimestamp() {
         assertFalse(LyricsText.hasTimestamps("[1:2] Not a timestamp"))
+        assertFalse(LyricsText.hasTimestamps("[01:90] Invalid seconds"))
         assertFalse(LyricsText.hasTimestamps("No timestamps here"))
     }
 
