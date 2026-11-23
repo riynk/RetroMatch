@@ -90,7 +90,7 @@ fun provideLyrics(retrofit: Retrofit): LyricsRestService {
  * LRCLIB has a dedicated client so its request timeout is not inherited from
  * the legacy one-second Last.fm client.
  */
-fun provideLrcLibApi(client: OkHttpClient): LrcLibApi {
+internal fun provideLrcLibApi(client: OkHttpClient): LrcLibApi {
     val lrcLibClientBuilder = client.newBuilder()
     // Lyrics can contain personal listening data; do not log request or response bodies.
     lrcLibClientBuilder.interceptors().removeAll { it is HttpLoggingInterceptor }
