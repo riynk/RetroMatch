@@ -28,6 +28,12 @@ import org.jaudiotagger.tag.images.Artwork
 import java.io.File
 import java.io.IOException
 
+internal fun createTagCacheFile(cacheDir: File, originFile: File): File {
+    val extension = originFile.extension.takeIf { it.isNotBlank() }?.let { ".$it" } ?: ".tmp"
+    val prefix = originFile.nameWithoutExtension.take(40).padEnd(3, '_') + "_"
+    return File.createTempFile(prefix, extension, cacheDir)
+}
+
 class TagWriter {
 
     companion object {
@@ -155,11 +161,9 @@ class TagWriter {
                 for (filePath in info.filePaths!!) {
                     try {
                         val originFile = File(filePath)
-                        val extension = originFile.extension.takeIf { it.isNotBlank() }?.let { ".$it" } ?: ".tmp"
-                        val prefix = originFile.nameWithoutExtension.take(40).padEnd(3, '_') + "_"
                         // Preserve the audio extension for format detection while avoiding
                         // collisions between files that share a basename in different folders.
-                        val cacheFile = File.createTempFile(prefix, extension, context.cacheDir)
+                        val cacheFile = createTagCacheFile(context.cacheDir, originFile)
                         cacheFiles.add(cacheFile)
 
                         originFile.inputStream().use { input ->
