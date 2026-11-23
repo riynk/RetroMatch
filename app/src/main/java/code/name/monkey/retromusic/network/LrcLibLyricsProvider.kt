@@ -60,7 +60,7 @@ interface LyricsProvider {
     ): FetchedLyrics?
 }
 
-class LrcLibLyricsProvider internal constructor(
+internal class LrcLibLyricsProvider internal constructor(
     private val api: LrcLibApi,
 ) : LyricsProvider {
 
