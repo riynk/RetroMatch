@@ -91,9 +91,11 @@ internal class LrcLibLyricsProvider internal constructor(
             exactResponse.body()?.toFetchedLyrics()?.takeIf { it.hasLyrics }?.let {
                 return it
             }
-        } else if (exactResponse.code() !in setOf(400, 404)) {
+        } else {
             exactResponse.errorBody()?.close()
-            exactResponse.code().throwIfTemporaryOrUnexpected()
+            if (exactResponse.code() !in setOf(400, 404)) {
+                exactResponse.code().throwIfTemporaryOrUnexpected()
+            }
         }
 
         val query = listOf(cleanArtist, cleanTitle, cleanAlbum)
