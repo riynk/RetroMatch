@@ -47,3 +47,25 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon lint :app:testNormalDebugUnitTest :app:assembleNormalDebug :app:assembleFdroidDebug
+
+      - name: Generate APK checksums
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find app/build/outputs/apk -type f -name '*.apk' | sort)
+          if [ "${#apks[@]}" -ne 2 ]; then
+            echo "Expected 2 APKs (Normal and F-Droid), found ${#apks[@]}" >&2
+            printf '%s\n' "${apks[@]}" >&2
+            exit 1
+          fi
+          sha256sum "${apks[@]}" | tee app/build/outputs/apk/SHA256SUMS.txt
+
+      - name: Upload debug APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetroMatch-debug-apks-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/normal/debug/*.apk
+            app/build/outputs/apk/fdroid/debug/*.apk
+            app/build/outputs/apk/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
