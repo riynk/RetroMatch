@@ -155,7 +155,11 @@ class TagWriter {
                 for (filePath in info.filePaths!!) {
                     try {
                         val originFile = File(filePath)
-                        val cacheFile = File(context.cacheDir, originFile.name)
+                        val extension = originFile.extension.takeIf { it.isNotBlank() }?.let { ".$it" } ?: ".tmp"
+                        val prefix = originFile.nameWithoutExtension.take(40).padEnd(3, '_') + "_"
+                        // Preserve the audio extension for format detection while avoiding
+                        // collisions between files that share a basename in different folders.
+                        val cacheFile = File.createTempFile(prefix, extension, context.cacheDir)
                         cacheFiles.add(cacheFile)
 
                         originFile.inputStream().use { input ->
