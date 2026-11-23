@@ -90,6 +90,13 @@ object LyricUtil {
         return managedDeleted || legacyDeleted
     }
 
+    /** Delete only this audio file's managed LRC, avoiding removal of duplicate-track lyrics. */
+    fun deleteLrcFile(song: Song): Boolean {
+        val managedDeleted = getManagedLrcFile(song).delete()
+        val sidecarDeleted = getLocalLyricOriginalFile(song.data)?.delete() == true
+        return managedDeleted || sidecarDeleted
+    }
+
     private fun isLrcFileExist(title: String, artist: String): Boolean {
         val file = File(getLrcPath(title, artist))
         return file.exists()
