@@ -278,14 +278,17 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 if (VersionUtils.hasR()) {
                     val lyricsToSave = input.toString()
                     val lrcFile = LyricUtil.getSyncedLyricsFile(song)
-                    if (lrcFile?.exists() == true) {
+                    if (lrcFile?.exists() == true && LyricUtil.isManagedLyricsFile(lrcFile)) {
+                        // App-specific files are writable without a MediaStore consent request.
+                        LyricUtil.writeLrc(song, lyricsToSave)
+                    } else if (lrcFile?.exists() == true) {
                         pendingSyncedLyrics = lyricsToSave
-                        pendingSyncedFileUri =
-                            UriUtil.getUriFromPath(requireContext(), lrcFile.absolutePath)
+                        val targetUri = UriUtil.getUriFromPath(requireContext(), lrcFile.absolutePath)
+                        pendingSyncedFileUri = targetUri
                         val pendingIntent =
                             MediaStore.createWriteRequest(
                                 requireContext().contentResolver,
-                                listOf(pendingSyncedFileUri!!)
+                                listOf(targetUri)
                             )
                         editSyncedLyricsLauncher.launch(
                             IntentSenderRequest.Builder(pendingIntent).build()
