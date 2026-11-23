@@ -60,7 +60,7 @@ object LyricUtil {
      */
     fun writeLrc(song: Song, lrcContext: String) {
         try {
-            val file = getManagedLrcFile(song.title, song.artistName)
+            val file = getManagedLrcFile(song)
             file.parentFile?.mkdirs()
             file.writeText(lrcContext, Charsets.UTF_8)
         } catch (e: IOException) {
@@ -78,11 +78,14 @@ object LyricUtil {
         return context.getExternalFilesDir("lyrics") ?: File(context.filesDir, "lyrics")
     }
 
-    private fun getManagedLrcFile(title: String, artist: String): File =
+    private fun getManagedLrcFile(song: Song): File =
+        File(getManagedLrcDirectory(), LyricsFileKey.create(song.data))
+
+    private fun getLegacyManagedLrcFile(title: String, artist: String): File =
         File(getManagedLrcDirectory(), "$title - $artist.lrc")
 
     fun deleteLrcFile(title: String, artist: String): Boolean {
-        val managedDeleted = getManagedLrcFile(title, artist).delete()
+        val managedDeleted = getLegacyManagedLrcFile(title, artist).delete()
         val legacyDeleted = File(getLrcPath(title, artist)).delete()
         return managedDeleted || legacyDeleted
     }
@@ -125,7 +128,7 @@ object LyricUtil {
 
     @Throws(Exception::class)
     fun getStringFromFile(title: String, artist: String): String {
-        val file = getManagedLrcFile(title, artist).takeIf { it.exists() }
+        val file = getLegacyManagedLrcFile(title, artist).takeIf { it.exists() }
             ?: File(getLrcPath(title, artist))
         return file.inputStream().use { convertStreamToString(it) }
     }
@@ -146,9 +149,11 @@ object LyricUtil {
     }
 
     fun getSyncedLyricsFile(song: Song): File? {
-        val managedFile = getManagedLrcFile(song.title, song.artistName)
+        val managedFile = getManagedLrcFile(song)
+        val legacyManagedFile = getLegacyManagedLrcFile(song.title, song.artistName)
         return when {
             managedFile.exists() -> managedFile
+            legacyManagedFile.exists() -> legacyManagedFile
             isLrcOriginalFileExist(song.data) -> getLocalLyricOriginalFile(song.data)
             isLrcFileExist(song.title, song.artistName) -> getLocalLyricFile(song.title, song.artistName)
             else -> null
