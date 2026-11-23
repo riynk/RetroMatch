@@ -100,6 +100,7 @@ android {
 
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation(project(":appthemehelper"))
     implementation(libs.gridLayout)
 
