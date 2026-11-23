@@ -342,14 +342,14 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
         }
     }
 
-    private fun showFetchedLyricsPreview(fetched: FetchedLyrics) {
-        val isSynced = fetched.preferredLyrics.matches(Regex("(?s).*\\\\[\\\\d{1,3}:\\\\d{2}(?:\\\\.\\\\d{1,3})?].*"))
+    private fun showFetchedLyricsPreview(requestedSong: Song, fetched: FetchedLyrics) {
+        val isSynced = Regex("\\[\\d{1,3}:\d{2}(?:\.\d{1,3})?]").containsMatchIn(fetched.preferredLyrics)
         val details = buildString {
             append(fetched.artist)
             if (fetched.album.isNotBlank()) append(" • ").append(fetched.album)
-            append("\\n")
+            append("\n")
             append(if (isSynced) getString(R.string.synced_lyrics) else getString(R.string.normal_lyrics))
-            append("\\n\\n")
+            append("\n\n")
             append(fetched.preferredLyrics)
         }
         android.app.AlertDialog.Builder(requireContext())
