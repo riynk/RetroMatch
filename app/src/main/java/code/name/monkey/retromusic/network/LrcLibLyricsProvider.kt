@@ -45,7 +45,7 @@ data class FetchedLyrics(
 ) {
     /** Prefer synchronized lyrics; fall back to plain text. */
     val preferredLyrics: String
-        get() = syncedLyrics.takeIf { it.hasTimestamp() } ?: plainLyrics
+        get() = syncedLyrics.takeIf { Regex("\\[\\d{1,3}:\\d{2}(?:\\.\\d{1,3})?]").containsMatchIn(it) } ?: plainLyrics
 
     val hasLyrics: Boolean
         get() = preferredLyrics.isNotBlank()
@@ -187,8 +187,6 @@ internal class LrcLibLyricsProvider internal constructor(
         throw java.io.IOException("LRCLIB request failed (HTTP $this)")
     }
 
-    private fun String.hasTimestamp(): Boolean =
-        Regex("\\[\\d{1,3}:\\d{2}(?:\\.\\d{1,3})?]").containsMatchIn(this)
 
     private companion object {
         const val MIN_SCORE = 0.72
