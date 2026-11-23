@@ -86,3 +86,20 @@ fun provideLyrics(retrofit: Retrofit): LyricsRestService {
         .build()
     return newBuilder.create(LyricsRestService::class.java)
 }
+/**
+ * LRCLIB has a dedicated client so its request timeout is not inherited from
+ * the legacy one-second Last.fm client.
+ */
+fun provideLrcLibApi(client: OkHttpClient): LrcLibApi {
+    val lrcLibClient = client.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .build()
+    return Retrofit.Builder()
+        .baseUrl("https://lrclib.net/")
+        .client(lrcLibClient)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(LrcLibApi::class.java)
+}
