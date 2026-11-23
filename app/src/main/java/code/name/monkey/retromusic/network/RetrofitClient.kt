@@ -91,7 +91,11 @@ fun provideLyrics(retrofit: Retrofit): LyricsRestService {
  * the legacy one-second Last.fm client.
  */
 fun provideLrcLibApi(client: OkHttpClient): LrcLibApi {
-    val lrcLibClient = client.newBuilder()
+    val lrcLibClientBuilder = client.newBuilder()
+    // Lyrics can contain personal listening data; do not log request or response bodies.
+    lrcLibClientBuilder.interceptors().removeAll { it is HttpLoggingInterceptor }
+    lrcLibClientBuilder.networkInterceptors().removeAll { it is HttpLoggingInterceptor }
+    val lrcLibClient = lrcLibClientBuilder
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
