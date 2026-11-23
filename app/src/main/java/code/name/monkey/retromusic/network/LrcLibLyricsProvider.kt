@@ -34,7 +34,7 @@ internal data class LrcLibTrackDto(
 )
 
 internal object LyricsText {
-    private val timestampPattern = Regex("""\[\d+:\d{2}(?:\.\d{1,3})?]""")
+    private val timestampPattern = Regex("""\[\d+:[0-5]\d(?:\.\d{1,3})?]""")
 
     fun hasTimestamps(value: String): Boolean = timestampPattern.containsMatchIn(value)
 
