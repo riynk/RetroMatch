@@ -46,4 +46,4 @@ jobs:
       - name: Build and lint
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon lint :app:assembleNormalDebug :app:assembleFdroidDebug
+          ./gradlew --no-daemon lint :app:testNormalDebugUnitTest :app:assembleNormalDebug :app:assembleFdroidDebug
