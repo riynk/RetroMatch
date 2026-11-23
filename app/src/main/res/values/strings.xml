@@ -149,6 +149,12 @@
     <string name="done">Done</string>
     <string name="drive_mode">Drive mode</string>
     <string name="edit_normal_lyrics">Edit Lyrics</string>
+    <string name="fetch_lyrics">Find lyrics online</string>
+    <string name="lyrics_searching">Searching LRCLIB…</string>
+    <string name="lyrics_not_found">No matching lyrics found.</string>
+    <string name="lyrics_search_failed">Could not search lyrics. Check your connection and try again.</string>
+    <string name="lyrics_song_changed">Song changed while searching. Please try again.</string>
+    <string name="lyrics_preview_title">Lyrics for %1$s</string>
     <string name="edit_synced_lyrics">Edit Synced Lyrics</string>
     <string name="empty">Empty</string>
     <string name="equalizer">Equalizer</string>
