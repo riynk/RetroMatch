@@ -356,7 +356,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     }
 
     private fun showFetchedLyricsPreview(requestedSong: Song, fetched: FetchedLyrics) {
-        val isSynced = Regex("""\[\d{1,3}:\d{2}(?:\.\d{1,3})?]""").containsMatchIn(fetched.preferredLyrics)
+        val isSynced = code.name.monkey.retromusic.network.LyricsText.hasTimestamps(fetched.preferredLyrics)
         val details = buildString {
             append(fetched.artist)
             if (fetched.album.isNotBlank()) append(" • ").append(fetched.album)
