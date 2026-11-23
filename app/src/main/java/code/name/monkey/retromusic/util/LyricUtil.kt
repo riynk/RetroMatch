@@ -14,6 +14,7 @@
 package code.name.monkey.retromusic.util
 
 import android.util.Log
+import code.name.monkey.retromusic.App
 import code.name.monkey.retromusic.model.Song
 import code.name.monkey.retromusic.model.lyrics.AbsSynchronizedLyrics
 import org.jaudiotagger.audio.AudioFileIO
@@ -53,36 +54,37 @@ object LyricUtil {
 
     //So in Retro, Lrc file can be same folder as Music File or in RetroMusic Folder
     // In this case we pass location of the file and Contents to write to file
+    /**
+     * Store app-fetched/edited LRC in app-specific external storage. Direct File writes
+     * to shared music folders are blocked by scoped storage on Android 11+.
+     */
     fun writeLrc(song: Song, lrcContext: String) {
-        var writer: FileWriter? = null
-        val location: File?
         try {
-            if (isLrcOriginalFileExist(song.data)) {
-                location = getLocalLyricOriginalFile(song.data)
-            } else if (isLrcFileExist(song.title, song.artistName)) {
-                location = getLocalLyricFile(song.title, song.artistName)
-            } else {
-                location = File(getLrcPath(song.title, song.artistName))
-                if (location.parentFile?.exists() != true) {
-                    location.parentFile?.mkdirs()
-                }
-            }
-            writer = FileWriter(location)
-            writer.write(lrcContext)
+            val file = getManagedLrcFile(song.title, song.artistName)
+            file.parentFile?.mkdirs()
+            file.writeText(lrcContext, Charsets.UTF_8)
         } catch (e: IOException) {
-            e.printStackTrace()
-        } finally {
-            try {
-                writer?.close()
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
+            Log.e(TAG, "Unable to save synchronized lyrics", e)
         }
     }
 
+    fun isManagedLyricsFile(file: File): Boolean {
+        val managedDirectory = getManagedLrcDirectory().canonicalFile
+        return file.canonicalFile.parentFile == managedDirectory
+    }
+
+    private fun getManagedLrcDirectory(): File {
+        val context = App.getContext()
+        return context.getExternalFilesDir("lyrics") ?: File(context.filesDir, "lyrics")
+    }
+
+    private fun getManagedLrcFile(title: String, artist: String): File =
+        File(getManagedLrcDirectory(), "$title - $artist.lrc")
+
     fun deleteLrcFile(title: String, artist: String): Boolean {
-        val file = File(getLrcPath(title, artist))
-        return file.delete()
+        val managedDeleted = getManagedLrcFile(title, artist).delete()
+        val legacyDeleted = File(getLrcPath(title, artist)).delete()
+        return managedDeleted || legacyDeleted
     }
 
     private fun isLrcFileExist(title: String, artist: String): Boolean {
@@ -123,11 +125,9 @@ object LyricUtil {
 
     @Throws(Exception::class)
     fun getStringFromFile(title: String, artist: String): String {
-        val file = File(getLrcPath(title, artist))
-        val fin = FileInputStream(file)
-        val ret = convertStreamToString(fin)
-        fin.close()
-        return ret
+        val file = getManagedLrcFile(title, artist).takeIf { it.exists() }
+            ?: File(getLrcPath(title, artist))
+        return file.inputStream().use { convertStreamToString(it) }
     }
 
     @Throws(Exception::class)
@@ -146,16 +146,12 @@ object LyricUtil {
     }
 
     fun getSyncedLyricsFile(song: Song): File? {
+        val managedFile = getManagedLrcFile(song.title, song.artistName)
         return when {
-            isLrcOriginalFileExist(song.data) -> {
-                getLocalLyricOriginalFile(song.data)
-            }
-            isLrcFileExist(song.title, song.artistName) -> {
-                getLocalLyricFile(song.title, song.artistName)
-            }
-            else -> {
-                null
-            }
+            managedFile.exists() -> managedFile
+            isLrcOriginalFileExist(song.data) -> getLocalLyricOriginalFile(song.data)
+            isLrcFileExist(song.title, song.artistName) -> getLocalLyricFile(song.title, song.artistName)
+            else -> null
         }
     }
 
