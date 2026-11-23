@@ -101,7 +101,9 @@ internal class LrcLibLyricsProvider internal constructor(
         val query = listOf(cleanArtist, cleanTitle, cleanAlbum)
             .filter { it.isNotBlank() }
             .joinToString(" ")
-        val candidates = api.search(query)
+        // Rank only usable candidates. Otherwise a metadata-perfect result without
+        // lyrics can hide a slightly lower-ranked result that actually contains lyrics.
+        val candidates = api.search(query).filter { it.toFetchedLyrics().hasLyrics }
         return candidates
             .asSequence()
             .map { candidate -> candidate to candidate.score(cleanArtist, cleanTitle, cleanAlbum, durationSeconds) }
