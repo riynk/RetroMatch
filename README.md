@@ -1,148 +1,60 @@
-<p align="center">
-  <a href="https://retromusic.app">
-    <img src="app\src\main\ic_launcher-web.png" height="128">
-    <h1 align="center">Retro Music Player 🎵</h1>
-  </a>
-</p>
-<p align="center">
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer" style="text-decoration:none" area-label="Android">
-    <img src="https://img.shields.io/badge/Platform-Android-green.svg">
-  </a>
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer/actions/workflows/android.yml" style="text-decoration:none" area-label="Build Status">
-    <img src="https://github.com/RetroMusicPlayer/RetroMusicPlayer/actions/workflows/android.yml/badge.svg">
-  </a>
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer" style="text-decoration:none" area-label="Min API: 21">
-    <img src="https://img.shields.io/badge/minSdkVersion-21-green.svg">
-  </a>
-  <a href="https://play.google.com/store/apps/details?id=code.name.monkey.retromusic" style="text-decoration:none" area-label="Play Store">
-    <img src="https://img.shields.io/badge/Download-Google_Play-green.svg">
-  </a>
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer/blob/master/LICENSE.md" style="text-decoration:none" area-label="License: GPL v3">
-    <img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg">
-  </a>
-  <a href="https://twitter.com/retromusicapp" style="text-decoration:none" area-label="Twitter Follow">
-    <img src="https://img.shields.io/twitter/follow/retromusicapp?style=social">
-  </a>
-  <a href="https://crowdin.com/project/retromusicplayer" style="text-decoration:none" area-label="Crowdin">
-    <img src="https://badges.crowdin.net/retromusicplayer/localized.svg">
-  </a>
+# RetroMatch
 
-</p>
+RetroMatch is an Android local-music player project that brings selected capabilities from several open-source music projects into one application.
 
-___
-# We're looking for more contributors and maintainers!
-# If you'd like to be a maintainer, please DM us on [Telegram](https://telegram.me/Daksh777) or [Twitter](https://twitter.com/0xDPJ)
-# All contributions are welcome!
-___
+The goal is a single APK with one music library, one playback service, and a consistent user experience—not a bundle of separate music-player apps.
 
-## 🆕 Material You Design Music Player for Android music lovers 
+## Current foundation
 
-## Download
-| Play Store | F-Droid |
-|:-:|:-:|
-| [<img src="assets/google-play-badge.png" height="80">](https://play.google.com/store/apps/details?id=code.name.monkey.retromusic) | [<img src="https://f-droid.org/badge/get-it-on.png" height="80">](https://f-droid.org/en/packages/code.name.monkey.retromusic/) |
+The `:app` module is based on **Retro Music Player v7.0.3**. Its existing Kotlin, XML layouts, Fragments, ViewBinding, Room database, Koin dependency injection, library screens, and playback service are retained as the initial foundation.
 
-or get it from the [GitHub Releases](https://github.com/RetroMusicPlayer/RetroMusicPlayer/releases).
+The application is being rebranded as RetroMatch. During the transition, the Android application ID is `app.retromatch.player`; the existing Kotlin namespace remains `code.name.monkey.retromusic` to avoid a risky package-wide rename before the architecture is ready.
 
-## ⚠ Join [@retromusiclog](https://telegram.me/retromusiclog) on Telegram for important updates.
-___
+## Planned source integrations
 
-## 📱 Screenshots
-### App Themes
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.jpg" width="200"/> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.jpg" width="200"/> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.jpg" width="200"/> |
-|:---:|:---:|:---:|
-|Clearly white| Kinda dark | Just black|
+| Source | Intended contribution | Integration approach |
+| --- | --- | --- |
+| Retro Music Player v7.0.3 | Main application, local library, playback, playlists, widgets, existing player experience | Keep as the application foundation |
+| Metadator v2.1.0 | Audio-tag editing, metadata lookup, cover editing, batch operations | Integrate selected metadata/domain logic and editor capabilities |
+| LocalPlayer vV1.0.1 | Player and library UI ideas | Reuse selected UX patterns; do not add a second player engine |
+| TimeLyr v1.1.0 | LRC parsing, synchronized lyrics, LRCLIB workflows | Port the useful logic into the native Kotlin application |
 
-### Player screen
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.jpg" width="200"/>|
-|:---:|:---:|:---:|:---:|:---:|
-| Home | Songs | Albums | Artists | Settings |
+The imported source branches are kept separate so each upstream project can be audited and integrated selectively.
 
-### Synced lyrics screen (Over Cover)
-| <img src="screenshots/synced_over_light.jpg" width="200"/>| <img src="screenshots/synced_over_dark.jpg" width="200"/>| <img src="screenshots/synced_over_black.jpg" width="200"/>|
-|:---:|:---:|:---:|
-| Synced Over Cover light | Synced Over Cover dark | Synced Over Cover black |
+## Architecture principles
 
-### Synced lyrics screen (Replace Cover)
-| <img src="screenshots/synced_replace_light.jpg" width="200"/>| <img src="screenshots/synced_replace_dark.jpg" width="200"/>| <img src="screenshots/synced_replace_black.jpg" width="200"/>|
-|:---:|:---:|:---:|
-| Synced Replace Cover light | Synced Replace Cover dark | Synced Replace Cover black |
+- One installable Android application.
+- One canonical music-library model and repository boundary.
+- One playback engine, foreground service, and media-session integration.
+- Lyrics and metadata are separate domain capabilities that use the same track identity.
+- Keep source-specific UI and duplicate playback/data layers out of the final app.
+- Preserve upstream copyright notices and comply with the applicable licenses.
 
-### 10+ Now playing themes
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.jpg" width="200"/>	|<img src="screenshots/fit.jpg" width="200"/>|   <img src="screenshots/flat.jpg" width="200"/>  	|    <img src="screenshots/color.jpg" width="200"/> 	|     <img src="screenshots/material.jpg" width="200"/>	|
-|:-----:	|:-----:	|:-----:	|:-----:	|:-----:	|
-| Normal 	| Fit 	| Flat 	| Color 	| Material 	|
+See [the integration architecture](docs/architecture/INTEGRATION_ARCHITECTURE.md) for the implementation sequence and boundaries.
 
-| <img src="screenshots/classic.jpg" width="200"/>	|<img src="screenshots/adaptive.jpg" width="200"/>|   <img src="screenshots/blur.jpg" width="200"/>  	|    <img src="screenshots/tiny.jpg" width="200"/> 	|     <img src="screenshots/peek.jpg" width="200"/>	|
-|:-----:	|:-----:	|:-----:	|:-----:	|:-----:	|
-| Classic 	| Adaptive 	| Blur 	| Tiny 	| Peek 	|
+## Build requirements
 
-___
+- JDK 21
+- Android SDK with API 36
+- Gradle Wrapper (use the checked-in `./gradlew`)
 
-## 🧭 Navigation never been made easier 
-Self-explanatory interface without overloaded menus.
+Build the application variants with:
 
-## 🎨 Colorful
-You can choose between three different main themes: Clearly White, Kinda
-Dark and Just Black for AMOLED displays. Select your favorite accent
-color from a color palette.
+```bash
+./gradlew :app:assembleNormalDebug
+./gradlew :app:assembleFdroidDebug
+```
 
-## 🏠 Home
-Where you can view your recently/top played artists, albums and
-favorite songs. No other music player has this feature.
+Run lint with:
 
-## 📦 Included Features
--  Base 3 themes (Clearly White, Kinda Dark and Just Black)
--  Chromecast support
--  Choose from 10+ now playing themes
--  Driving Mode
--  Headset/Bluetooth support
--  Music duration filter
--  Android Auto support
--  Wallpaper accent picker on Android 8.1+
--  Material You support on Android 12+
--  Monet themed icon support on Android 13+
--  Folder support - Play songs by folder
--  Gapless playback
--  Volume controls
--  Carousel effect for album covers
--  Home screen widgets
--  Lock screen playback controls
--  Lyrics screen (download and sync with music)
--  Sleep timer
--  Easy drag to sort playlist & play queue
--  Tag editor
--  Create, edit and import playlists
--  Playing queue with reorder
--  User profile
--  30+ languages support (help translate the project: [Crowdin](https://crowdin.com/project/retromusicplayer)
--  Browse and play your music by songs, albums, artists, playlists and
-  genre
--  Smart Auto Playlists - Recently played, most played and history
--  Build your playlist on the go
+```bash
+./gradlew lint
+```
 
-We are trying our best to bring you the best user experience. The app is regularly updated for bug fixes and new features.
+Build verification must be recorded against the exact commit being tested. A successful source import is not the same as a successful APK build.
 
-___
+## License
 
+The current application foundation is licensed under **GNU General Public License v3.0**. The project must retain the required upstream notices and source obligations for the GPL-derived application. Any MIT-licensed components integrated from other sources must retain their copyright and license notices.
 
-## ❓ FAQ
-Please read the FAQ [here](https://retromusic.app/faq.html)
-
-In any case, if you find or notice any bugs please report them by creating an issue or by contacting us in the [Telegram help & feedback group](https://t.me/retromusicapp).
-If you have any feature suggestions, please create an issue with detailed information or by contacting us in the [Telegram suggestions group](https://t.me/retro_music_suggestion).
-
-## 🔗 Social links
-**Telegram:** https://t.me/retromusicapp <br>
-**Crowdin**: https://crowdin.com/project/retromusicplayer <br>
-**Pinterest:** https://pinterest.com/retromusicapp <br>
-**Twitter:** https://twitter.com/retromusicapp <br>
-
-## 🗂️ License
-
-Retro Music Player is released under the GNU General Public License v3.0
-(GPLv3), which can be found [here](LICENSE.md)
-
-
->Please note: Retro Music Player is a local music player app. It
->doesn't support music downloading or online music streaming.
+See [LICENSE.md](LICENSE.md) and the upstream source repositories for the full license texts and attribution requirements.
