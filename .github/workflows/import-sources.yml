@@ -1,0 +1,65 @@
+name: Import source projects into branches
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        source:
+          - name: RetroMusicPlayer
+            url: https://github.com/RetroMusicPlayer/RetroMusicPlayer/archive/refs/tags/v7.0.3.zip
+            branch: integration/retromusic
+          - name: Metadator
+            url: https://github.com/BobbyESP/Metadator/archive/refs/tags/v2.1.0.zip
+            branch: integration/metadator
+          - name: LocalPlayer
+            url: https://github.com/cvc953/localplayer/archive/refs/tags/vV1.0.1.zip
+            branch: integration/localplayer
+          - name: TimeLyr
+            url: https://github.com/cvc953/TimeLyr/archive/refs/tags/v1.1.0.zip
+            branch: integration/timelyr
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/source-archive
+          curl -fL --retry 3 --retry-delay 2 "${{ matrix.source.url }}" -o /tmp/source.zip
+          unzip -q /tmp/source.zip -d /tmp/source-archive
+
+      - name: Import source into dedicated branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "riynk"
+          git config user.email "riynkazis@gmail.com"
+          git switch --create "${{ matrix.source.branch }}"
+          root="$(find /tmp/source-archive -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          if [ -n "$root" ]; then
+            source_dir="$root"
+          else
+            source_dir="/tmp/source-archive"
+          fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a "$source_dir/." .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to import."
+            exit 0
+          fi
+          git commit -m "Import ${{ matrix.source.name }} source"
+          git push origin "${{ matrix.source.branch }}"
