@@ -14,8 +14,11 @@ import code.name.monkey.retromusic.model.Genre
 import code.name.monkey.retromusic.network.provideDefaultCache
 import code.name.monkey.retromusic.network.provideLastFmRest
 import code.name.monkey.retromusic.network.provideLastFmRetrofit
+import code.name.monkey.retromusic.network.provideLrcLibApi
 import code.name.monkey.retromusic.network.provideOkHttp
 import code.name.monkey.retromusic.repository.*
+import code.name.monkey.retromusic.network.LrcLibLyricsProvider
+import code.name.monkey.retromusic.network.LyricsProvider
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.bind
@@ -35,6 +38,12 @@ val networkModule = module {
     single {
         provideLastFmRest(get())
     }
+    single {
+        provideLrcLibApi(get())
+    }
+    single {
+        LrcLibLyricsProvider(get())
+    } bind LyricsProvider::class
 }
 
 private val roomModule = module {
