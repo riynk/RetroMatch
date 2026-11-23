@@ -33,6 +33,41 @@ internal data class LrcLibTrackDto(
     val syncedLyrics: String? = null,
 )
 
+internal object LyricsText {
+    private val timestampPattern = Regex("""\\[\\d+:\\d{2}(?:\\.\\d{1,3})?]""")
+
+    fun hasTimestamps(value: String): Boolean = timestampPattern.containsMatchIn(value)
+
+    fun normalizeMusicText(value: String): String {
+        val normalized = java.text.Normalizer.normalize(
+            value.lowercase(java.util.Locale.ROOT),
+            java.text.Normalizer.Form.NFD
+        )
+        return normalized.replace(Regex("\\p{Mn}"), "")
+            // Preserve non-Latin scripts as well as ASCII titles and artist names.
+            .replace(Regex("[^\\p{L}\\p{N}\\s]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    fun primaryArtist(value: String): String =
+        value.split(Regex("\\s*(,|&|;|/| x | and | feat\\.? | ft\\.? )\\s*", RegexOption.IGNORE_CASE))
+            .firstOrNull()
+            .orEmpty()
+            .trim()
+
+    fun fieldScore(source: String, target: String, exact: Double, partial: Double): Double {
+        if (source.isBlank() || target.isBlank()) return 0.0
+        if (source == target) return exact
+        if (source.contains(target) || target.contains(source)) return partial
+        val sourceTokens = source.split(' ').filter { it.isNotBlank() }.toSet()
+        val targetTokens = target.split(' ').filter { it.isNotBlank() }.toSet()
+        if (sourceTokens.isEmpty() || targetTokens.isEmpty()) return 0.0
+        return (sourceTokens intersect targetTokens).size.toDouble() /
+            (sourceTokens union targetTokens).size * partial
+    }
+}
+
 data class FetchedLyrics(
     val sourceId: Int,
     val title: String,
@@ -126,9 +161,24 @@ internal class LrcLibLyricsProvider internal constructor(
         album: String,
         durationSeconds: Int,
     ): Double {
-        var score = fieldScore(title.normalizeMusicText(), trackName.orEmpty().normalizeMusicText(), 0.55, 0.35)
-        score += fieldScore(artist.primaryArtist().normalizeMusicText(), artistName.orEmpty().primaryArtist().normalizeMusicText(), 0.35, 0.20)
-        score += fieldScore(album.normalizeMusicText(), albumName.orEmpty().normalizeMusicText(), 0.10, 0.04)
+        var score = LyricsText.fieldScore(
+            LyricsText.normalizeMusicText(title),
+            LyricsText.normalizeMusicText(trackName.orEmpty()),
+            0.55,
+            0.35
+        )
+        score += LyricsText.fieldScore(
+            LyricsText.normalizeMusicText(LyricsText.primaryArtist(artist)),
+            LyricsText.normalizeMusicText(LyricsText.primaryArtist(artistName.orEmpty())),
+            0.35,
+            0.20
+        )
+        score += LyricsText.fieldScore(
+            LyricsText.normalizeMusicText(album),
+            LyricsText.normalizeMusicText(albumName.orEmpty()),
+            0.10,
+            0.04
+        )
 
         val candidateDuration = duration?.roundToSeconds() ?: 0
         if (durationSeconds > 0 && candidateDuration > 0) {
@@ -153,31 +203,6 @@ internal class LrcLibLyricsProvider internal constructor(
         syncedLyrics = syncedLyrics.orEmpty(),
         instrumental = instrumental ?: false,
     )
-
-    private fun fieldScore(source: String, target: String, exact: Double, partial: Double): Double {
-        if (source.isBlank() || target.isBlank()) return 0.0
-        if (source == target) return exact
-        if (source.contains(target) || target.contains(source)) return partial
-        val sourceTokens = source.split(' ').filter { it.isNotBlank() }.toSet()
-        val targetTokens = target.split(' ').filter { it.isNotBlank() }.toSet()
-        if (sourceTokens.isEmpty() || targetTokens.isEmpty()) return 0.0
-        return (sourceTokens intersect targetTokens).size.toDouble() /
-            (sourceTokens union targetTokens).size * partial
-    }
-
-    private fun String.normalizeMusicText(): String {
-        val normalized = java.text.Normalizer.normalize(this.lowercase(), java.text.Normalizer.Form.NFD)
-        return normalized.replace(Regex("\\p{Mn}"), "")
-            .replace(Regex("[^a-z0-9\\s]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-    }
-
-    private fun String.primaryArtist(): String =
-        split(Regex("\\s*(,|&|;|/| x | and | feat\\.? | ft\\.? )\\s*", RegexOption.IGNORE_CASE))
-            .firstOrNull()
-            .orEmpty()
-            .trim()
 
     private fun Double.roundToSeconds(): Int = kotlin.math.round(this).toInt()
     private fun Long.roundToSeconds(): Int = kotlin.math.round(this.toDouble()).toInt()
