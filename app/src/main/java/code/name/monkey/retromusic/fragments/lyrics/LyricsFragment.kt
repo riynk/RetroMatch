@@ -20,6 +20,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.text.InputType
+import android.widget.Toast
 import android.view.*
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
@@ -44,6 +45,8 @@ import code.name.monkey.retromusic.helper.MusicProgressViewUpdateHelper
 import code.name.monkey.retromusic.lyrics.LrcView
 import code.name.monkey.retromusic.model.AudioTagInfo
 import code.name.monkey.retromusic.model.Song
+import code.name.monkey.retromusic.network.FetchedLyrics
+import code.name.monkey.retromusic.network.LyricsProvider
 import code.name.monkey.retromusic.util.FileUtils
 import code.name.monkey.retromusic.util.LyricUtil
 import code.name.monkey.retromusic.util.UriUtil
@@ -54,6 +57,7 @@ import org.jaudiotagger.tag.FieldKey
 import java.io.File
 import java.io.FileOutputStream
 import java.util.*
+import org.koin.android.ext.android.inject
 import kotlin.collections.set
 
 class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
@@ -82,6 +86,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
         }
 
     private lateinit var updateHelper: MusicProgressViewUpdateHelper
+    private val lyricsProvider: LyricsProvider by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -189,8 +194,9 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.action_search) {
-            openUrl(googleSearchLrcUrl)
+        when (item.itemId) {
+            R.id.action_search -> openUrl(googleSearchLrcUrl)
+            R.id.action_fetch_lyrics -> fetchLyricsFromLrcLib()
         }
         return false
     }
@@ -303,6 +309,66 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
             negativeButton(res = android.R.string.cancel)
         }
     }
+
+
+    private fun fetchLyricsFromLrcLib() {
+        val requestedSong = song
+        Toast.makeText(requireContext(), R.string.lyrics_searching, Toast.LENGTH_SHORT).show()
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val fetched = lyricsProvider.fetchLyrics(
+                    artist = requestedSong.artistName,
+                    title = requestedSong.title,
+                    album = requestedSong.albumName,
+                    durationMillis = requestedSong.duration
+                )
+                if (!isAdded) return@launch
+                if (MusicPlayerRemote.currentSong.id != requestedSong.id) {
+                    Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                if (fetched == null || !fetched.hasLyrics) {
+                    Toast.makeText(requireContext(), R.string.lyrics_not_found, Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                showFetchedLyricsPreview(fetched)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (isAdded) {
+                    Toast.makeText(requireContext(), R.string.lyrics_search_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun showFetchedLyricsPreview(fetched: FetchedLyrics) {
+        val isSynced = fetched.preferredLyrics.matches(Regex("(?s).*\\\\[\\\\d{1,3}:\\\\d{2}(?:\\\\.\\\\d{1,3})?].*"))
+        val details = buildString {
+            append(fetched.artist)
+            if (fetched.album.isNotBlank()) append(" • ").append(fetched.album)
+            append("\\n")
+            append(if (isSynced) getString(R.string.synced_lyrics) else getString(R.string.normal_lyrics))
+            append("\\n\\n")
+            append(fetched.preferredLyrics)
+        }
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.lyrics_preview_title, fetched.title))
+            .setMessage(details)
+            .setPositiveButton(R.string.save) { _, _ ->
+                if (isSynced) {
+                    LyricUtil.writeLrc(requestedSongForPreview(), fetched.preferredLyrics)
+                    loadLyrics()
+                } else {
+                    editNormalLyrics(fetched.preferredLyrics)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun requestedSongForPreview(): Song = song
+
 
     private fun loadNormalLyrics() {
         val file = File(song.data)
