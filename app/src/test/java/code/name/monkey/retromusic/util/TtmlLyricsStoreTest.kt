@@ -1,10 +1,9 @@
 package code.name.monkey.retromusic.util
 
-import java.io.File
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import org.junit.Rule
 
 class TtmlLyricsStoreTest {
     @get:Rule
@@ -14,7 +13,7 @@ class TtmlLyricsStoreTest {
         <tt xmlns="http://www.w3.org/ns/ttml">
           <body><div>
             <p begin="00:00:01.000" end="00:00:02.000">
-              <span begin="00:00:01.000" end="00:00:01.500">Hello</span>
+              <span begin="00:00:01.000" end="00:00:01.500">Hello </span>
               <span begin="00:00:01.500" end="00:00:02.000">world</span>
             </p>
           </div></body>
@@ -29,6 +28,17 @@ class TtmlLyricsStoreTest {
         assertNotNull(lyrics)
         assertEquals("Hello world", lyrics!!.lines.single().text)
         assertEquals(2, lyrics.lines.single().syllabus.size)
+    }
+
+    @Test
+    fun preservesSyllableTimingForAWordSplitAcrossSpans() {
+        val store = TtmlLyricsStore(temporaryFolder.root)
+        val ttml = validTtml.replace("Hello ", "Hel").replace("world", "lo world")
+        assertTrue(store.save("/music/syllables.flac", ttml))
+        val line = store.read("/music/syllables.flac")!!.lines.single()
+        assertEquals("Hello world", line.text)
+        assertEquals("Hel", line.syllabus[0].text)
+        assertTrue(line.syllabus[0].continuesWord)
     }
 
     @Test
