@@ -171,6 +171,7 @@ internal class LrcLibLyricsProvider internal constructor(
                     exactResponse.code().throwIfTemporaryOrUnexpected()
                 }
             }
+            delay(250L)
         }
 
         // Search with album first, then retry using artist/title only. Wait between
