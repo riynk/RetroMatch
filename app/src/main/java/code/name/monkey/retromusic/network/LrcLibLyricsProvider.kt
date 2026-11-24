@@ -119,7 +119,7 @@ data class FetchedLyrics(
         get() = syncedLyrics.takeIf { LyricsText.hasTimestamps(it) } ?: plainLyrics
 
     val hasLyrics: Boolean
-        get() = preferredLyrics.isNotBlank() || !lyricsfile.isNullOrBlank()
+        get() = !instrumental && (preferredLyrics.isNotBlank() || !lyricsfile.isNullOrBlank())
 }
 
 interface LyricsProvider {
@@ -238,7 +238,12 @@ internal class LrcLibLyricsProvider internal constructor(
             throw java.io.IOException("LRCLIB rate limited the request without a valid Retry-After header")
         }
 
-        val delayMs = retryAfterSeconds.coerceAtMost(120L) * 1000L
+        if (retryAfterSeconds > MAX_AUTOMATIC_RETRY_SECONDS) {
+            throw java.io.IOException(
+                "LRCLIB requested a $retryAfterSeconds-second retry delay; retry was not attempted early"
+            )
+        }
+        val delayMs = retryAfterSeconds * 1000L
         val jitterLimit = (delayMs * 0.30).toLong().coerceAtLeast(1L)
         delay(delayMs + Random.nextLong(0L, jitterLimit))
         // Retry only once; a second 429 is surfaced to the caller instead of looping.
@@ -308,5 +313,6 @@ internal class LrcLibLyricsProvider internal constructor(
     private companion object {
         const val MIN_SCORE = 0.72
         const val MIN_SCORE_GAP = 0.08
+        const val MAX_AUTOMATIC_RETRY_SECONDS = 120L
     }
 }
