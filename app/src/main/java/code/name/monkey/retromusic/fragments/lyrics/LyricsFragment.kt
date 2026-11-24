@@ -57,6 +57,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.*
 import org.koin.android.ext.android.inject
@@ -91,6 +92,10 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
         }
 
     private lateinit var updateHelper: MusicProgressViewUpdateHelper
+
+    private companion object {
+        const val MAX_TTML_IMPORT_BYTES = 2 * 1024 * 1024
+    }
     private val lyricsProvider: LyricsProvider by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -120,18 +125,18 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
             lifecycleScope.launch {
                 val imported = try {
                     withContext(Dispatchers.IO) {
-                        contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { reader ->
-                            val content = StringBuilder()
-                            val buffer = CharArray(8192)
-                            var totalChars = 0
+                        contentResolver.openInputStream(uri)?.use { input ->
+                            val content = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var totalBytes = 0
                             while (true) {
-                                val count = reader.read(buffer)
+                                val count = input.read(buffer)
                                 if (count < 0) break
-                                totalChars += count
-                                if (totalChars > 2 * 1024 * 1024) return@use null
-                                content.append(buffer, 0, count)
+                                totalBytes += count
+                                if (totalBytes > MAX_TTML_IMPORT_BYTES) return@use null
+                                content.write(buffer, 0, count)
                             }
-                            content.toString()
+                            content.toByteArray().toString(Charsets.UTF_8)
                         }
                     }
                 } catch (_: Exception) {
@@ -252,6 +257,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
 
     override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.menu_lyrics, menu)
+        menu.findItem(R.id.action_cycle_lyrics_display).isVisible = binding.ttmlLyricsView.isVisible
         ToolbarContentTintHelper.handleOnCreateOptionsMenu(
             requireContext(),
             binding.toolbar,
@@ -260,27 +266,38 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
         )
     }
 
-    override fun onMenuItemSelected(item: MenuItem): Boolean {
+    override fun onMenuItemSelected(item: MenuItem): Boolean =
         when (item.itemId) {
-            R.id.action_search -> openUrl(googleSearchLrcUrl)
-            R.id.action_fetch_lyrics -> fetchLyricsFromLrcLib()
+            R.id.action_search -> {
+                openUrl(googleSearchLrcUrl)
+                true
+            }
+            R.id.action_fetch_lyrics -> {
+                fetchLyricsFromLrcLib()
+                true
+            }
             R.id.action_cycle_lyrics_display -> {
-                val mode = binding.ttmlLyricsView.cycleDisplayMode()
-                val label = when (mode) {
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ORIGINAL -> R.string.lyrics_display_original
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLATION -> R.string.lyrics_display_translation
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLITERATION -> R.string.lyrics_display_transliteration
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ALL -> R.string.lyrics_display_all
+                if (binding.ttmlLyricsView.isVisible) {
+                    val mode = binding.ttmlLyricsView.cycleDisplayMode()
+                    val label = when (mode) {
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ORIGINAL -> R.string.lyrics_display_original
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLATION -> R.string.lyrics_display_translation
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLITERATION -> R.string.lyrics_display_transliteration
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ALL -> R.string.lyrics_display_all
+                    }
+                    item.title = getString(label)
+                    true
+                } else {
+                    false
                 }
-                item.title = getString(label)
             }
             R.id.action_import_ttml -> {
                 pendingTtmlImportSong = song
                 importTtmlLauncher.launch(arrayOf("*/*"))
+                true
             }
+            else -> false
         }
-        return false
-    }
 
     @SuppressLint("CheckResult")
     private fun editNormalLyrics(lyrics: String? = null) {
@@ -525,6 +542,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
             binding.noLyricsFound.isVisible = false
             binding.editButton.isVisible = false
             lyricsType = LyricsType.SYNCED_LYRICS
+            requireActivity().invalidateOptionsMenu()
             return
         }
 
@@ -541,6 +559,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
             binding.lyricsView.isVisible = true
             LyricsType.SYNCED_LYRICS
         }
+        requireActivity().invalidateOptionsMenu()
     }
 
     override fun onResume() {

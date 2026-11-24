@@ -19,21 +19,22 @@ internal class TtmlLyricsStore(private val directory: File) {
         if (parsed.lines.isEmpty()) return false
 
         val target = fileFor(audioPath)
-        val temporary = File(directory, "${target.name}.tmp")
+        var temporary: File? = null
         return try {
             if (!directory.exists() && !directory.mkdirs()) return false
-            temporary.writeText(content, Charsets.UTF_8)
-            if (target.exists() && !target.delete()) return false
-            if (temporary.renameTo(target)) {
-                true
-            } else {
-                target.writeText(content, Charsets.UTF_8)
-                temporary.delete()
-                true
+            val tempFile = File.createTempFile("${target.name}.", ".tmp", directory)
+            temporary = tempFile
+            tempFile.outputStream().use { output ->
+                output.write(content.toByteArray(Charsets.UTF_8))
+                output.fd.sync()
             }
+            // Keep the previous file intact unless the complete replacement can be renamed
+            // into place. The temporary file is in the same directory for an atomic rename.
+            tempFile.renameTo(target)
         } catch (_: IOException) {
-            temporary.delete()
             false
+        } finally {
+            temporary?.delete()
         }
     }
 
