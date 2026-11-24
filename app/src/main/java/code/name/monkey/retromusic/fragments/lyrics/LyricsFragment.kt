@@ -471,7 +471,9 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     private fun showFetchedLyricsPreview(requestedSong: Song, fetched: FetchedLyrics) {
         val parsedLyricsFile = fetched.lyricsfile?.let(LyricsFileParser::parse)
         val lyricsFileText = parsedLyricsFile?.lines?.joinToString("\n") { it.text }.orEmpty()
-        val previewLyrics = fetched.preferredLyrics.ifBlank { lyricsFileText }
+        val previewLyrics = fetched.preferredLyrics
+            .ifBlank { lyricsFileText }
+            .ifBlank { fetched.plainLyrics }
         val hasWordSync = parsedLyricsFile?.lines?.any { it.syllabus.isNotEmpty() } == true
         val hasLyricsFile = parsedLyricsFile?.lines?.isNotEmpty() == true
         val isSynced = hasWordSync || hasLyricsFile ||
