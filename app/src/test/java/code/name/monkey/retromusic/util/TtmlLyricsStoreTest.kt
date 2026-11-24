@@ -55,6 +55,18 @@ class TtmlLyricsStoreTest {
     }
 
     @Test
+    fun replacesExistingLyricsWithoutLeavingTemporaryFiles() {
+        val store = TtmlLyricsStore(temporaryFolder.root)
+        val path = "/music/replace.flac"
+        assertTrue(store.save(path, validTtml))
+
+        val replacement = validTtml.replace("Hello ", "Goodbye ")
+        assertTrue(store.save(path, replacement))
+        assertEquals("Goodbye world", store.read(path)!!.lines.single().text)
+        assertEquals(1, temporaryFolder.root.listFiles()?.size)
+    }
+
+    @Test
     fun rejectsEmptyOrInvalidTtmlWithoutCreatingAFile() {
         val store = TtmlLyricsStore(temporaryFolder.root)
         assertFalse(store.save("/music/track.flac", ""))
