@@ -44,7 +44,7 @@ import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import code.name.monkey.retromusic.helper.MusicProgressViewUpdateHelper
 import code.name.monkey.retromusic.lyrics.LrcView
 import code.name.monkey.retromusic.lyrics.ttml.LyricsFileParser
-import code.name.monkey.retromusic.lyrics.ttml.TtmlLyricsSerializer
+import code.name.monkey.retromusic.util.LyricsFileStore
 import code.name.monkey.retromusic.util.TtmlLyricsStore
 import code.name.monkey.retromusic.model.AudioTagInfo
 import code.name.monkey.retromusic.model.Song
@@ -499,8 +499,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 if (MusicPlayerRemote.currentSong.id != requestedSong.id) {
                     Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
                 } else if (hasLyricsFile && parsedLyricsFile != null) {
-                    val ttml = TtmlLyricsSerializer.serialize(parsedLyricsFile)
-                    val saved = ttml != null && TtmlLyricsStore.appStore().save(requestedSong.data, ttml)
+                    val saved = LyricsFileStore.appStore().save(requestedSong.data, fetched.lyricsfile.orEmpty())
                     if (saved) {
                         loadLyrics()
                         Toast.makeText(requireContext(), R.string.lyrics_file_saved, Toast.LENGTH_LONG).show()
@@ -551,7 +550,9 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     }
 
     private fun loadLyrics() {
-        val ttml = TtmlLyricsStore.appStore().read(song.data)
+        val lyricsFile = LyricsFileStore.appStore().read(song.data)
+            ?.let(LyricsFileParser::parse)
+        val ttml = lyricsFile ?: TtmlLyricsStore.appStore().read(song.data)
         if (ttml != null) {
             binding.ttmlLyricsView.setLyrics(ttml)
             binding.ttmlLyricsView.isVisible = true
