@@ -52,7 +52,9 @@ import code.name.monkey.retromusic.util.FileUtils
 import code.name.monkey.retromusic.util.LyricUtil
 import code.name.monkey.retromusic.util.UriUtil
 import com.afollestad.materialdialogs.input.input
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import java.io.File
@@ -114,16 +116,20 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
             pendingTtmlImportSong = null
             if (uri == null || targetSong == null || !isAdded) return@registerForActivityResult
 
-            viewLifecycleOwner.lifecycleScope.launch {
+            lifecycleScope.launch {
                 val imported = try {
-                    requireContext().contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
-                        it.readText().takeIf { content -> content.length <= 2 * 1024 * 1024 }
+                    withContext(Dispatchers.IO) {
+                        requireContext().contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
+                            it.readText().takeIf { content -> content.length <= 2 * 1024 * 1024 }
+                        }
                     }
                 } catch (_: Exception) {
                     null
                 }
 
-                val saved = imported?.let { TtmlLyricsStore.appStore().save(targetSong.data, it) } == true
+                val saved = withContext(Dispatchers.IO) {
+                    imported?.let { TtmlLyricsStore.appStore().save(targetSong.data, it) } == true
+                }
                 if (!isAdded) return@launch
                 if (saved) {
                     if (_binding != null && MusicPlayerRemote.currentSong.id == targetSong.id) loadLyrics()
