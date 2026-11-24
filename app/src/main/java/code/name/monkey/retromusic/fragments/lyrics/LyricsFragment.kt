@@ -147,7 +147,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     }
 
     private fun setupLyricsView() {
-        binding.ttmlLyricsView.setHighlightColor(accentColor())
+        binding.ttmlLyricsView.setKaraokeHighlightColor(accentColor())
         binding.lyricsView.apply {
             setCurrentColor(accentColor())
             setTimeTextColor(accentColor())
