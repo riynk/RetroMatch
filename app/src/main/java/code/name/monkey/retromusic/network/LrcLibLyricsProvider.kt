@@ -44,7 +44,6 @@ internal object LyricsText {
             java.text.Normalizer.Form.NFD
         )
         return normalized.replace(Regex("\\p{Mn}"), "")
-            // Preserve non-Latin scripts as well as ASCII titles and artist names.
             .replace(Regex("[^\\p{L}\\p{N}\\s]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
@@ -66,6 +65,38 @@ internal object LyricsText {
         return (sourceTokens intersect targetTokens).size.toDouble() /
             (sourceTokens union targetTokens).size * partial
     }
+
+    /** Keep the album-qualified search, then retry without album if it is too restrictive. */
+    fun searchQueries(artist: String, title: String, album: String): List<String> =
+        listOf(
+            listOf(artist, title, album).filter { it.isNotBlank() }.joinToString(" "),
+            listOf(artist, title).filter { it.isNotBlank() }.joinToString(" "),
+        ).filter { it.isNotBlank() }.distinct()
+
+    /** Reject candidates that only happen to share an album or a duration. */
+    fun isPlausibleCandidate(
+        requestedArtist: String,
+        requestedTitle: String,
+        candidateArtist: String,
+        candidateTitle: String,
+    ): Boolean {
+        val titleScore = fieldScore(
+            normalizeMusicText(requestedTitle),
+            normalizeMusicText(candidateTitle),
+            1.0,
+            0.65
+        )
+        val artistScore = fieldScore(
+            normalizeMusicText(primaryArtist(requestedArtist)),
+            normalizeMusicText(primaryArtist(candidateArtist)),
+            1.0,
+            0.65
+        )
+        return titleScore >= MIN_TITLE_MATCH && artistScore >= MIN_ARTIST_MATCH
+    }
+
+    private const val MIN_TITLE_MATCH = 0.35
+    private const val MIN_ARTIST_MATCH = 0.35
 }
 
 data class FetchedLyrics(
@@ -78,7 +109,6 @@ data class FetchedLyrics(
     val syncedLyrics: String,
     val instrumental: Boolean,
 ) {
-    /** Prefer synchronized lyrics; fall back to plain text. */
     val preferredLyrics: String
         get() = syncedLyrics.takeIf { LyricsText.hasTimestamps(it) } ?: plainLyrics
 
@@ -133,21 +163,38 @@ internal class LrcLibLyricsProvider internal constructor(
             }
         }
 
-        val query = listOf(cleanArtist, cleanTitle, cleanAlbum)
-            .filter { it.isNotBlank() }
-            .joinToString(" ")
-        // Rank only usable candidates. Otherwise a metadata-perfect result without
-        // lyrics can hide a slightly lower-ranked result that actually contains lyrics.
-        val candidates = api.search(query).filter { it.toFetchedLyrics().hasLyrics }
-        return candidates
-            .asSequence()
-            .map { candidate -> candidate to candidate.score(cleanArtist, cleanTitle, cleanAlbum, durationSeconds) }
+        // Search with album first, then retry using artist/title only. Merge results
+        // before ranking so an album-specific empty/irrelevant result cannot block fallback.
+        val candidatesByIdentity = linkedMapOf<String, LrcLibTrackDto>()
+        LyricsText.searchQueries(cleanArtist, cleanTitle, cleanAlbum).forEach { query ->
+            api.search(query).forEach { candidate ->
+                val identity = candidate.id.takeIf { it > 0 }?.let { "id:$it" }
+                    ?: listOf(candidate.trackName, candidate.artistName, candidate.albumName)
+                        .joinToString("|") { it.orEmpty().lowercase(java.util.Locale.ROOT) }
+                candidatesByIdentity.putIfAbsent(identity, candidate)
+            }
+        }
+
+        val ranked = candidatesByIdentity.values
+            .filter { candidate ->
+                candidate.toFetchedLyrics().hasLyrics &&
+                    LyricsText.isPlausibleCandidate(
+                        cleanArtist,
+                        cleanTitle,
+                        candidate.artistName.orEmpty(),
+                        candidate.trackName.orEmpty()
+                    )
+            }
+            .map { candidate ->
+                candidate to candidate.score(cleanArtist, cleanTitle, cleanAlbum, durationSeconds)
+            }
             .sortedByDescending { it.second }
-            .toList()
-            .takeIf { ranked ->
-                ranked.isNotEmpty() &&
-                    ranked.first().second >= MIN_SCORE &&
-                    (ranked.size == 1 || ranked.first().second - ranked[1].second >= MIN_SCORE_GAP)
+
+        return ranked
+            .takeIf { results ->
+                results.isNotEmpty() &&
+                    results.first().second >= MIN_SCORE &&
+                    (results.size == 1 || results.first().second - results[1].second >= MIN_SCORE_GAP)
             }
             ?.first()
             ?.first
@@ -213,7 +260,6 @@ internal class LrcLibLyricsProvider internal constructor(
         }
         throw java.io.IOException("LRCLIB request failed (HTTP $this)")
     }
-
 
     private companion object {
         const val MIN_SCORE = 0.72
