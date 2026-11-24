@@ -100,9 +100,20 @@ internal fun provideLrcLibApi(client: OkHttpClient): LrcLibApi {
         .readTimeout(10, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
         .build()
+    val identifiedClient = lrcLibClient.newBuilder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header(
+                    "User-Agent",
+                    "RetroMatch/${BuildConfig.VERSION_NAME} (https://github.com/riynk/RetroMatch)"
+                )
+                .build()
+            chain.proceed(request)
+        }
+        .build()
     return Retrofit.Builder()
         .baseUrl("https://lrclib.net/")
-        .client(lrcLibClient)
+        .client(identifiedClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(LrcLibApi::class.java)
