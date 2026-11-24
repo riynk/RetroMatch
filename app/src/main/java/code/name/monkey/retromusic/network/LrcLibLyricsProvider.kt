@@ -5,9 +5,13 @@
  */
 package code.name.monkey.retromusic.network
 
+import kotlinx.coroutines.delay
+import retrofit2.HttpException
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
+import kotlin.math.round
+import kotlin.random.Random
 
 internal interface LrcLibApi {
     @GET("api/get")
@@ -19,7 +23,7 @@ internal interface LrcLibApi {
     ): Response<LrcLibTrackDto>
 
     @GET("api/search")
-    suspend fun search(@Query("q") query: String): List<LrcLibTrackDto>
+    suspend fun search(@Query("q") query: String): Response<List<LrcLibTrackDto>>
 }
 
 internal data class LrcLibTrackDto(
@@ -31,6 +35,7 @@ internal data class LrcLibTrackDto(
     val instrumental: Boolean? = false,
     val plainLyrics: String? = null,
     val syncedLyrics: String? = null,
+    val lyricsfile: String? = null,
 )
 
 internal object LyricsText {
@@ -108,12 +113,13 @@ data class FetchedLyrics(
     val plainLyrics: String,
     val syncedLyrics: String,
     val instrumental: Boolean,
+    val lyricsfile: String? = null,
 ) {
     val preferredLyrics: String
         get() = syncedLyrics.takeIf { LyricsText.hasTimestamps(it) } ?: plainLyrics
 
     val hasLyrics: Boolean
-        get() = preferredLyrics.isNotBlank()
+        get() = !instrumental && (preferredLyrics.isNotBlank() || !lyricsfile.isNullOrBlank())
 }
 
 interface LyricsProvider {
@@ -146,34 +152,52 @@ internal class LrcLibLyricsProvider internal constructor(
             0
         }
 
-        val exactResponse = api.getExact(
-            artist = cleanArtist,
-            title = cleanTitle,
-            album = cleanAlbum,
-            durationSeconds = durationSeconds,
-        )
-        if (exactResponse.isSuccessful) {
-            exactResponse.body()?.toFetchedLyrics()?.takeIf { it.hasLyrics }?.let {
-                return it
+        if (durationSeconds in 1..3600) {
+            val exactResponse = retryOnceAfterRateLimit {
+                api.getExact(
+                    artist = cleanArtist,
+                    title = cleanTitle,
+                    album = cleanAlbum,
+                    durationSeconds = durationSeconds,
+                )
             }
-        } else {
-            exactResponse.errorBody()?.close()
-            if (exactResponse.code() !in setOf(400, 404)) {
-                exactResponse.code().throwIfTemporaryOrUnexpected()
+            if (exactResponse.isSuccessful) {
+                exactResponse.body()?.toFetchedLyrics()?.takeIf { it.hasLyrics }?.let {
+                    return it
+                }
+            } else {
+                exactResponse.errorBody()?.close()
+                if (exactResponse.code() !in setOf(400, 404)) {
+                    exactResponse.code().throwIfTemporaryOrUnexpected()
+                }
             }
+            delay(250L)
         }
 
-        // Search with album first, then retry using artist/title only. Merge results
-        // before ranking so an album-specific empty/irrelevant result cannot block fallback.
+        // Search with album first, then retry using artist/title only. Wait between
+        // calls as required by LRCLIB's public API guidance.
         val candidatesByIdentity = linkedMapOf<String, LrcLibTrackDto>()
-        LyricsText.searchQueries(cleanArtist, cleanTitle, cleanAlbum).forEach { query ->
-            api.search(query).forEach { candidate ->
-                val identity = candidate.id.takeIf { it > 0 }?.let { "id:$it" }
-                    ?: listOf(candidate.trackName, candidate.artistName, candidate.albumName)
-                        .joinToString("|") { it.orEmpty().lowercase(java.util.Locale.ROOT) }
-                candidatesByIdentity.putIfAbsent(identity, candidate)
+        LyricsText.searchQueries(cleanArtist, cleanTitle, cleanAlbum)
+            .forEachIndexed { index, query ->
+                if (index > 0) delay(250L)
+                val response = retryOnceAfterRateLimit { api.search(query) }
+                val candidates = if (response.isSuccessful) {
+                    response.body().orEmpty()
+                } else {
+                    response.errorBody()?.close()
+                    if (response.code() == 400 || response.code() == 404) {
+                        emptyList()
+                    } else {
+                        throw HttpException(response)
+                    }
+                }
+                candidates.forEach { candidate ->
+                    val identity = candidate.id.takeIf { it > 0 }?.let { "id:$it" }
+                        ?: listOf(candidate.trackName, candidate.artistName, candidate.albumName)
+                            .joinToString("|") { it.orEmpty().lowercase(java.util.Locale.ROOT) }
+                    candidatesByIdentity.putIfAbsent(identity, candidate)
+                }
             }
-        }
 
         val ranked = candidatesByIdentity.values
             .filter { candidate ->
@@ -200,6 +224,30 @@ internal class LrcLibLyricsProvider internal constructor(
             ?.first
             ?.toFetchedLyrics()
             ?.takeIf { it.hasLyrics }
+    }
+
+    private suspend fun <T> retryOnceAfterRateLimit(
+        request: suspend () -> Response<T>
+    ): Response<T> {
+        val response = request()
+        if (response.code() != 429) return response
+
+        val retryAfterSeconds = response.headers()["Retry-After"]?.trim()?.toLongOrNull()
+        response.errorBody()?.close()
+        if (retryAfterSeconds == null || retryAfterSeconds <= 0L) {
+            throw java.io.IOException("LRCLIB rate limited the request without a valid Retry-After header")
+        }
+
+        if (retryAfterSeconds > MAX_AUTOMATIC_RETRY_SECONDS) {
+            throw java.io.IOException(
+                "LRCLIB requested a $retryAfterSeconds-second retry delay; retry was not attempted early"
+            )
+        }
+        val delayMs = retryAfterSeconds * 1000L
+        val jitterLimit = (delayMs * 0.30).toLong().coerceAtLeast(1L)
+        delay(delayMs + Random.nextLong(0L, jitterLimit))
+        // Retry only once; a second 429 is surfaced to the caller instead of looping.
+        return request()
     }
 
     private fun LrcLibTrackDto.score(
@@ -249,10 +297,11 @@ internal class LrcLibLyricsProvider internal constructor(
         plainLyrics = plainLyrics.orEmpty(),
         syncedLyrics = syncedLyrics.orEmpty(),
         instrumental = instrumental ?: false,
+        lyricsfile = lyricsfile,
     )
 
-    private fun Double.roundToSeconds(): Int = kotlin.math.round(this).toInt()
-    private fun Long.roundToSeconds(): Int = kotlin.math.round(this.toDouble()).toInt()
+    private fun Double.roundToSeconds(): Int = round(this).toInt()
+    private fun Long.roundToSeconds(): Int = round(this.toDouble()).toInt()
 
     private fun Int.throwIfTemporaryOrUnexpected() {
         if (this == 429 || this >= 500) {
@@ -264,5 +313,6 @@ internal class LrcLibLyricsProvider internal constructor(
     private companion object {
         const val MIN_SCORE = 0.72
         const val MIN_SCORE_GAP = 0.08
+        const val MAX_AUTOMATIC_RETRY_SECONDS = 120L
     }
 }
