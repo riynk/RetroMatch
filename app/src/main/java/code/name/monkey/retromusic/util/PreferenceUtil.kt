@@ -671,20 +671,16 @@ object PreferenceUtil {
         set(value) = sharedPreferences.edit { putInt(ALBUM_COVER_STYLE, value.id) }
 
 
+    /**
+     * RetroMatch exposes one player surface. The legacy preference key is
+     * intentionally retained for backward compatibility with existing installs,
+     * but it no longer selects one of the retired Retro Music player variants.
+     */
     var nowPlayingScreen: NowPlayingScreen
-        get() {
-            val id: Int = sharedPreferences.getInt(NOW_PLAYING_SCREEN_ID, 0)
-            for (nowPlayingScreen in NowPlayingScreen.values()) {
-                if (nowPlayingScreen.id == id) {
-                    return nowPlayingScreen
-                }
-            }
-            return NowPlayingScreen.Adaptive
-        }
-        set(value) = sharedPreferences.edit {
-            putInt(NOW_PLAYING_SCREEN_ID, value.id)
-            // Also set a cover theme for that now playing
-            value.defaultCoverTheme?.let { coverTheme -> albumCoverStyle = coverTheme }
+        get() = NowPlayingScreen.Normal
+        set(value) {
+            // Keep the legacy setter binary/source-compatible while the old
+            // preference dialog is retired. Player selection is no longer user-facing.
         }
 
     val albumCoverTransform: ViewPager.PageTransformer
