@@ -534,6 +534,9 @@
     <string name="listing_files" translatable="false" />
 
     <string name="import_ttml_lyrics">Import TTML lyrics</string>
+    <string name="lyrics_word_synced">Word-synced karaoke</string>
+    <string name="lyrics_file_saved">Timed lyrics saved for this track.</string>
+    <string name="lyrics_file_save_failed">Could not save the timed lyrics.</string>
     <string name="ttml_import_success">TTML lyrics imported for this track.</string>
     <string name="ttml_import_failed">Could not import TTML. Check the file format and size.</string>
     <string name="lyrics_display_original">Display: Original</string>
