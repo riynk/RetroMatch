@@ -138,7 +138,9 @@ object TtmlParser {
                 }
                 XmlPullParser.TEXT -> {
                     val text = parser.text
-                    if (!text.isNullOrEmpty()) textBuilder.append(text)
+                    // Ignore formatting indentation between spans, but preserve
+                    // whitespace that is part of a timed span's own text.
+                    if (!text.isNullOrBlank()) textBuilder.append(text)
                 }
                 XmlPullParser.END_TAG -> if (parser.name == "p") depth--
             }
