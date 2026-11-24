@@ -72,6 +72,10 @@ private val roomModule = module {
     }
 
     single {
+        RealTrackVideoRepository(get())
+    } bind TrackVideoRepository::class
+
+    single {
         RealRoomRepository(get(), get(), get())
     } bind RoomRepository::class
 }
