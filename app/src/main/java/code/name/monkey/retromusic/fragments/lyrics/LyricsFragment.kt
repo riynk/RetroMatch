@@ -43,6 +43,7 @@ import code.name.monkey.retromusic.fragments.base.AbsMainActivityFragment
 import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import code.name.monkey.retromusic.helper.MusicProgressViewUpdateHelper
 import code.name.monkey.retromusic.lyrics.LrcView
+import code.name.monkey.retromusic.util.TtmlLyricsStore
 import code.name.monkey.retromusic.model.AudioTagInfo
 import code.name.monkey.retromusic.model.Song
 import code.name.monkey.retromusic.network.FetchedLyrics
@@ -146,6 +147,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     }
 
     private fun setupLyricsView() {
+        binding.ttmlLyricsView.setKaraokeHighlightColor(accentColor())
         binding.lyricsView.apply {
             setCurrentColor(accentColor())
             setTimeTextColor(accentColor())
@@ -160,6 +162,7 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
 
     override fun onUpdateProgressViews(progress: Int, total: Int) {
         binding.lyricsView.updateTime(progress.toLong())
+        if (binding.ttmlLyricsView.isVisible) binding.ttmlLyricsView.updateTime(progress.toLong())
     }
 
     private fun setupViews() {
@@ -456,6 +459,21 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     }
 
     private fun loadLyrics() {
+        val ttml = TtmlLyricsStore.appStore().read(song.data)
+        if (ttml != null) {
+            binding.ttmlLyricsView.setLyrics(ttml)
+            binding.ttmlLyricsView.isVisible = true
+            binding.lyricsView.isVisible = false
+            binding.normalLyrics.isVisible = false
+            binding.noLyricsFound.isVisible = false
+            binding.editButton.isVisible = false
+            lyricsType = LyricsType.SYNCED_LYRICS
+            return
+        }
+
+        binding.ttmlLyricsView.setLyrics(null)
+        binding.ttmlLyricsView.isVisible = false
+        binding.editButton.isVisible = true
         lyricsType = if (!loadLRCLyrics()) {
             binding.lyricsView.isVisible = false
             loadNormalLyrics()
