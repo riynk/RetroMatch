@@ -6,6 +6,10 @@
         android:title="@string/fetch_lyrics"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/action_cycle_lyrics_display"
+        android:title="@string/lyrics_display_original"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_import_ttml"
         android:title="@string/import_ttml_lyrics"
         app:showAsAction="never" />
