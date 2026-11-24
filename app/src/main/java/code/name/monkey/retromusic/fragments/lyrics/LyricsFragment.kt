@@ -277,16 +277,19 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 true
             }
             R.id.action_cycle_lyrics_display -> {
-                if (!binding.ttmlLyricsView.isVisible) return false
-                val mode = binding.ttmlLyricsView.cycleDisplayMode()
-                val label = when (mode) {
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ORIGINAL -> R.string.lyrics_display_original
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLATION -> R.string.lyrics_display_translation
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLITERATION -> R.string.lyrics_display_transliteration
-                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ALL -> R.string.lyrics_display_all
+                if (binding.ttmlLyricsView.isVisible) {
+                    val mode = binding.ttmlLyricsView.cycleDisplayMode()
+                    val label = when (mode) {
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ORIGINAL -> R.string.lyrics_display_original
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLATION -> R.string.lyrics_display_translation
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLITERATION -> R.string.lyrics_display_transliteration
+                        code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ALL -> R.string.lyrics_display_all
+                    }
+                    item.title = getString(label)
+                    true
+                } else {
+                    false
                 }
-                item.title = getString(label)
-                true
             }
             R.id.action_import_ttml -> {
                 pendingTtmlImportSong = song
