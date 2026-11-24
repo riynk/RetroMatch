@@ -46,10 +46,13 @@ class TtmlKaraokeView @JvmOverloads constructor(
         letterSpacing = 0.012f
         typeface = ResourcesCompat.getFont(context, R.font.manrope) ?: typeface
         setLineSpacing(6f * resources.displayMetrics.scaledDensity, 1.06f)
-        secondaryTextColor = context.obtainStyledAttributes(
+        val secondaryTextAttributes = context.obtainStyledAttributes(
             intArrayOf(android.R.attr.textColorSecondary)
-        ).use { array ->
-            array.getColorStateList(0)?.defaultColor ?: currentTextColor
+        )
+        secondaryTextColor = try {
+            secondaryTextAttributes.getColorStateList(0)?.defaultColor ?: currentTextColor
+        } finally {
+            secondaryTextAttributes.recycle()
         }
     }
 
