@@ -69,6 +69,8 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
 
     private lateinit var normalLyricsLauncher: ActivityResultLauncher<IntentSenderRequest>
     private lateinit var editSyncedLyricsLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private lateinit var importTtmlLauncher: ActivityResultLauncher<Array<String>>
+    private var pendingTtmlImportSong: Song? = null
 
     private var pendingNormalLyricsCacheFile: File? = null
     private var pendingNormalLyricsUri: Uri? = null
@@ -107,6 +109,30 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 pendingNormalLyricsUri = null
                 pendingNormalLyricsCacheFile = null
             }
+        importTtmlLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            val targetSong = pendingTtmlImportSong
+            pendingTtmlImportSong = null
+            if (uri == null || targetSong == null || !isAdded) return@registerForActivityResult
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val imported = try {
+                    requireContext().contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
+                        it.readText().takeIf { content -> content.length <= 2 * 1024 * 1024 }
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+
+                val saved = imported?.let { TtmlLyricsStore.appStore().save(targetSong.data, it) } == true
+                if (!isAdded) return@launch
+                if (saved) {
+                    if (_binding != null && MusicPlayerRemote.currentSong.id == targetSong.id) loadLyrics()
+                    Toast.makeText(requireContext(), R.string.ttml_import_success, Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(requireContext(), R.string.ttml_import_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
         editSyncedLyricsLauncher =
             registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
                 val targetUri = pendingSyncedFileUri
@@ -221,6 +247,10 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
         when (item.itemId) {
             R.id.action_search -> openUrl(googleSearchLrcUrl)
             R.id.action_fetch_lyrics -> fetchLyricsFromLrcLib()
+            R.id.action_import_ttml -> {
+                pendingTtmlImportSong = song
+                importTtmlLauncher.launch(arrayOf("*/*"))
+            }
         }
         return false
     }
