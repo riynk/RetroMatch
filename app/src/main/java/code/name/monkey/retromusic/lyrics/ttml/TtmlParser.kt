@@ -182,7 +182,7 @@ object TtmlParser {
             when (parser.next()) {
                 XmlPullParser.TEXT -> parser.text?.let(text::append)
                 XmlPullParser.START_TAG -> depth++
-                XmlPullParser.END_TAG -> if (parser.name == "span") depth--
+                XmlPullParser.END_TAG -> depth--
             }
         }
 
