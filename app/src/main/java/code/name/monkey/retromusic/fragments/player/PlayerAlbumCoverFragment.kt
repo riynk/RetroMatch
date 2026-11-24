@@ -48,10 +48,12 @@ import code.name.monkey.retromusic.model.lyrics.Lyrics
 import code.name.monkey.retromusic.transform.CarousalPagerTransformer
 import code.name.monkey.retromusic.transform.ParallaxPagerTransformer
 import code.name.monkey.retromusic.util.CoverLyricsType
+import code.name.monkey.retromusic.util.TtmlLyricsStore
 import code.name.monkey.retromusic.util.LyricUtil
 import code.name.monkey.retromusic.util.PreferenceUtil
 import code.name.monkey.retromusic.util.color.MediaNotificationProcessor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -73,6 +75,7 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
         }
     }
     private var progressViewUpdateHelper: MusicProgressViewUpdateHelper? = null
+    private var lyricsLoadJob: Job? = null
 
     private val lrcView: CoverLrcView get() = binding.lyricsView
 
@@ -90,27 +93,60 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
 
     private fun updateLyrics() {
         val song = MusicPlayerRemote.currentSong
-        lifecycleScope.launch(Dispatchers.IO) {
-            val lrcFile = LyricUtil.getSyncedLyricsFile(song)
-            if (lrcFile != null) {
-                binding.lyricsView.loadLrc(lrcFile)
+        lyricsLoadJob?.cancel()
+        lyricsLoadJob = viewLifecycleOwner.lifecycleScope.launch {
+            val ttml = withContext(Dispatchers.IO) {
+                TtmlLyricsStore.appStore().read(song.data)
+            }
+
+            if (_binding == null || MusicPlayerRemote.currentSong.id != song.id) return@launch
+
+            if (ttml != null) {
+                binding.ttmlLyricsView.setKaraokeHighlightColor(accentColor())
+                binding.ttmlLyricsView.setLyrics(ttml)
+                binding.ttmlLyricsView.isVisible = true
+                binding.viewPager.isVisible = false
+                binding.coverLyrics.isVisible = false
+                binding.fadingEdgeLayout.isVisible = false
+                progressViewUpdateHelper?.start()
+                return@launch
+            }
+
+            binding.ttmlLyricsView.setLyrics(null)
+            binding.ttmlLyricsView.isVisible = false
+            binding.viewPager.isVisible = true
+            binding.fadingEdgeLayout.isVisible = true
+
+            val lrcFile = withContext(Dispatchers.IO) {
+                LyricUtil.getSyncedLyricsFile(song)
+            }
+            val embeddedLyrics = if (lrcFile == null) {
+                withContext(Dispatchers.IO) {
+                    LyricUtil.getEmbeddedSyncedLyrics(song.data)
+                }
             } else {
-                val embeddedLyrics = LyricUtil.getEmbeddedSyncedLyrics(song.data)
-                if (embeddedLyrics != null) {
-                    binding.lyricsView.loadLrc(embeddedLyrics)
-                } else {
-                    withContext(Dispatchers.Main) {
-                        binding.lyricsView.reset()
-                        binding.lyricsView.setLabel(context?.getString(R.string.no_lyrics_found))
-                    }
+                null
+            }
+
+            if (_binding == null || MusicPlayerRemote.currentSong.id != song.id) return@launch
+
+            when {
+                lrcFile != null -> binding.lyricsView.loadLrc(lrcFile)
+                embeddedLyrics != null -> binding.lyricsView.loadLrc(embeddedLyrics)
+                else -> {
+                    binding.lyricsView.reset()
+                    binding.lyricsView.setLabel(getString(R.string.no_lyrics_found))
                 }
             }
+            maybeInitLyrics()
         }
-
     }
 
     override fun onUpdateProgressViews(progress: Int, total: Int) {
         binding.lyricsView.updateTime(progress.toLong())
+        if (binding.ttmlLyricsView.isVisible) {
+            binding.ttmlLyricsView.updateTime(progress.toLong())
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -173,6 +209,8 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
             .unregisterOnSharedPreferenceChangeListener(this)
         binding.viewPager.removeOnPageChangeListener(this)
         progressViewUpdateHelper?.stop()
+        lyricsLoadJob?.cancel()
+        lyricsLoadJob = null
         _binding = null
     }
 
@@ -219,6 +257,7 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
     }
 
     private fun showLyrics(visible: Boolean) {
+        if (binding.ttmlLyricsView.isVisible) return
         binding.coverLyrics.isVisible = false
         binding.lyricsView.isVisible = false
         binding.viewPager.isVisible = true
@@ -238,6 +277,7 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
     }
 
     private fun maybeInitLyrics() {
+        if (_binding == null || binding.ttmlLyricsView.isVisible) return
         val nps = PreferenceUtil.nowPlayingScreen
         // Don't show lyrics container for below conditions
         if (lyricViewNpsList.contains(nps) && PreferenceUtil.showLyrics) {
