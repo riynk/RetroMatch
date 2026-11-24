@@ -85,7 +85,7 @@ object TtmlParser {
                         depth++
                     }
                 }
-                XmlPullParser.END_TAG -> if (parser.name == "div") depth--
+                XmlPullParser.END_TAG -> depth--
             }
         }
         return lines
@@ -142,7 +142,7 @@ object TtmlParser {
                     // whitespace that is part of a timed span's own text.
                     if (!text.isNullOrBlank()) textBuilder.append(text)
                 }
-                XmlPullParser.END_TAG -> if (parser.name == "p") depth--
+                XmlPullParser.END_TAG -> depth--
             }
         }
 
