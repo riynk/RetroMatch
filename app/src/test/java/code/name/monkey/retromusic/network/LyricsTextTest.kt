@@ -50,4 +50,56 @@ class LyricsTextTest {
                 LyricsText.fieldScore("midnight city", "midnight city", 0.55, 0.35)
         )
     }
+
+    @Test
+    fun searchQueriesRetryWithoutAlbumAndAvoidDuplicates() {
+        assertEquals(
+            listOf("Aimer Ref:rain After Dark", "Aimer Ref:rain"),
+            LyricsText.searchQueries("Aimer", "Ref:rain", "After Dark")
+        )
+        assertEquals(
+            listOf("Aimer Ref:rain"),
+            LyricsText.searchQueries("Aimer", "Ref:rain", "")
+        )
+    }
+
+    @Test
+    fun candidateMatchingRequiresBothTitleAndArtist() {
+        assertTrue(
+            LyricsText.isPlausibleCandidate(
+                "Aimer feat. milet",
+                "Ref:rain",
+                "Aimer",
+                "Ref rain"
+            )
+        )
+        assertFalse(
+            LyricsText.isPlausibleCandidate(
+                "Aimer",
+                "Ref:rain",
+                "YOASOBI",
+                "Ref:rain"
+            )
+        )
+        assertFalse(
+            LyricsText.isPlausibleCandidate(
+                "Aimer",
+                "Ref:rain",
+                "Aimer",
+                "Brave Shine"
+            )
+        )
+    }
+
+    @Test
+    fun candidateMatchingNormalizesAccentsAndCase() {
+        assertTrue(
+            LyricsText.isPlausibleCandidate(
+                "Beyoncé",
+                "Déjà Vu",
+                "Beyonce",
+                "Deja Vu"
+            )
+        )
+    }
 }
