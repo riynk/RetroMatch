@@ -116,11 +116,22 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
             pendingTtmlImportSong = null
             if (uri == null || targetSong == null || !isAdded) return@registerForActivityResult
 
+            val contentResolver = requireContext().contentResolver
             lifecycleScope.launch {
                 val imported = try {
                     withContext(Dispatchers.IO) {
-                        requireContext().contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
-                            it.readText().takeIf { content -> content.length <= 2 * 1024 * 1024 }
+                        contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                            val content = StringBuilder()
+                            val buffer = CharArray(8192)
+                            var totalChars = 0
+                            while (true) {
+                                val count = reader.read(buffer)
+                                if (count < 0) break
+                                totalChars += count
+                                if (totalChars > 2 * 1024 * 1024) return@use null
+                                content.append(buffer, 0, count)
+                            }
+                            content.toString()
                         }
                     }
                 } catch (_: Exception) {
