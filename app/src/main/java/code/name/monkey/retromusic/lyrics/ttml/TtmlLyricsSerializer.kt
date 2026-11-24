@@ -11,7 +11,8 @@ object TtmlLyricsSerializer {
     fun serialize(lyrics: TtmlLyrics): String? {
         if (lyrics.lines.isEmpty()) return null
         return buildString {
-            append("""<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word"><body><div>""")
+            val timingMode = if (lyrics.lines.any { it.syllabus.isNotEmpty() }) "Word" else "Line"
+            append("""<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="$timingMode"><body><div>""")
             lyrics.lines.forEach { line ->
                 val lineEnd = line.timeMs + line.durationMs
                 append("<p begin=\"")
