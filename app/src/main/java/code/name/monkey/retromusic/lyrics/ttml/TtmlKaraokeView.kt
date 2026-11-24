@@ -4,18 +4,18 @@
 package code.name.monkey.retromusic.lyrics.ttml
 
 import android.content.Context
+import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
-import android.graphics.Typeface
 import android.util.AttributeSet
 import androidx.appcompat.widget.AppCompatTextView
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLyrics
 
 /**
- * Displays the active TTML line and highlights the syllable whose time window
- * contains the current playback position. Timing remains in milliseconds.
+ * Displays timed source lyrics and optional line-level translation/transliteration.
+ * Secondary text is appended without modifying source syllable offsets or timing.
  */
 class TtmlKaraokeView @JvmOverloads constructor(
     context: Context,
@@ -23,9 +23,13 @@ class TtmlKaraokeView @JvmOverloads constructor(
     defStyleAttr: Int = android.R.attr.textViewStyle
 ) : AppCompatTextView(context, attrs, defStyleAttr) {
 
+    enum class DisplayMode { ORIGINAL, TRANSLATION, TRANSLITERATION, ALL }
+
     private var lyrics: TtmlLyrics? = null
     private var lastLineIndex = -1
     private var highlightColor: Int = currentTextColor
+    private var displayMode = DisplayMode.ORIGINAL
+    private var lastPositionMs: Long = 0L
 
     init {
         gravity = android.view.Gravity.CENTER
@@ -37,12 +41,22 @@ class TtmlKaraokeView @JvmOverloads constructor(
         updateTime(lastPositionMs)
     }
 
-    private var lastPositionMs: Long = 0L
+    fun cycleDisplayMode(): DisplayMode {
+        displayMode = when (displayMode) {
+            DisplayMode.ORIGINAL -> DisplayMode.TRANSLATION
+            DisplayMode.TRANSLATION -> DisplayMode.TRANSLITERATION
+            DisplayMode.TRANSLITERATION -> DisplayMode.ALL
+            DisplayMode.ALL -> DisplayMode.ORIGINAL
+        }
+        updateTime(lastPositionMs)
+        return displayMode
+    }
 
     fun setLyrics(value: TtmlLyrics?) {
         lyrics = value?.takeIf { it.lines.isNotEmpty() }
         lastLineIndex = -1
         lastPositionMs = 0L
+        displayMode = DisplayMode.ORIGINAL
         isSelected = lyrics != null
         updateTime(0L)
     }
@@ -60,6 +74,22 @@ class TtmlKaraokeView @JvmOverloads constructor(
         }
 
         val line = lines[lineIndex]
+        val secondary = buildList {
+            when (displayMode) {
+                DisplayMode.ORIGINAL -> Unit
+                DisplayMode.TRANSLATION -> line.translation?.takeIf { it.isNotBlank() }?.let(::add)
+                DisplayMode.TRANSLITERATION -> line.transliteration?.takeIf { it.isNotBlank() }?.let(::add)
+                DisplayMode.ALL -> {
+                    line.translation?.takeIf { it.isNotBlank() }?.let(::add)
+                    line.transliteration?.takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }
+        val renderedText = buildString {
+            append(line.text)
+            secondary.forEach { append('\n').append(it) }
+        }
+        val rendered = SpannableString(renderedText)
         val syllables = line.syllabus
         val active = syllables.indexOfLast { syllable ->
             lastPositionMs >= syllable.timeMs &&
@@ -67,7 +97,6 @@ class TtmlKaraokeView @JvmOverloads constructor(
                     lastPositionMs < syllable.timeMs + syllable.durationMs)
         }
 
-        val rendered = SpannableString(line.text)
         var searchFrom = 0
         syllables.forEachIndexed { index, syllable ->
             val start = line.text.indexOf(syllable.text, searchFrom)

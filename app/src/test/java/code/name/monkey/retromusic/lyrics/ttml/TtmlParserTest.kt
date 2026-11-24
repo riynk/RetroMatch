@@ -74,6 +74,26 @@ class TtmlParserTest {
     }
 
     @Test
+    fun parsesOptionalTranslationAndTransliterationWithoutChangingTimedSource() {
+        val ttml = """
+            <tt xmlns="http://www.w3.org/ns/ttml"><body><div>
+              <p begin="00:00:01.000" end="00:00:02.000"
+                 translation="Hello world" transliteration="Konnichiwa sekai">
+                <span begin="00:00:01.000" end="00:00:01.500">こんにちは </span>
+                <span begin="00:00:01.500" end="00:00:02.000">世界</span>
+              </p>
+            </div></body></tt>
+        """.trimIndent()
+
+        val line = TtmlParser.parseTtml(ttml).lines.single()
+        assertEquals("こんにちは 世界", line.text)
+        assertEquals("Hello world", line.translation)
+        assertEquals("Konnichiwa sekai", line.transliteration)
+        assertEquals(2, line.syllabus.size)
+        assertEquals(1_000L, line.syllabus.first().timeMs)
+    }
+
+    @Test
     fun marksWordContinuationAcrossAdjacentLines() {
         val ttml = """
             <tt xmlns="http://www.w3.org/ns/ttml"><body><div>
