@@ -574,29 +574,11 @@ abstract class AbsSlidingMusicPanelActivity : AbsMusicServiceActivity(),
     }
 
     private fun chooseFragmentForTheme() {
+        // RetroMatch intentionally has one player surface. Keep the legacy
+        // preference model for migration compatibility, but never instantiate
+        // the retired Retro Music player variants.
         nowPlayingScreen = PreferenceUtil.nowPlayingScreen
-
-        val fragment: AbsPlayerFragment = when (nowPlayingScreen) {
-            Blur -> BlurPlayerFragment()
-            Adaptive -> AdaptiveFragment()
-            Normal -> PlayerFragment()
-            Card -> CardFragment()
-            BlurCard -> CardBlurFragment()
-            Fit -> FitFragment()
-            Flat -> FlatPlayerFragment()
-            Full -> FullPlayerFragment()
-            Plain -> PlainPlayerFragment()
-            Simple -> SimplePlayerFragment()
-            Material -> MaterialFragment()
-            Color -> ColorFragment()
-            Gradient -> GradientPlayerFragment()
-            Tiny -> TinyPlayerFragment()
-            Peek -> PeekPlayerFragment()
-            Circle -> CirclePlayerFragment()
-            Classic -> ClassicPlayerFragment()
-            MD3 -> MD3PlayerFragment()
-            else -> PlayerFragment()
-        } // must extend AbsPlayerFragment
+        val fragment: AbsPlayerFragment = PlayerFragment()
         supportFragmentManager.commit {
             replace(R.id.playerFragmentContainer, fragment)
         }
