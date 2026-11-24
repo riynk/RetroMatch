@@ -533,4 +533,7 @@
     <string name="try_retro_music_premium" translatable="false" />
     <string name="listing_files" translatable="false" />
 
+    <string name="import_ttml_lyrics">Import TTML lyrics</string>
+    <string name="ttml_import_success">TTML lyrics imported for this track.</string>
+    <string name="ttml_import_failed">Could not import TTML. Check the file format and size.</string>
 </resources>
