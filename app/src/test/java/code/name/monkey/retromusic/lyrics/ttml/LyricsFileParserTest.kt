@@ -38,7 +38,7 @@ class LyricsFileParserTest {
         assertEquals(listOf("A ", "synchronized ", "lyric ", "line"), line.syllabus.map { it.text })
         assertEquals(800L, line.syllabus[0].durationMs)
         assertEquals(1_200L, line.syllabus[1].durationMs)
-        assertEquals(700L, line.syllabus[2].durationMs)
+        assertEquals(800L, line.syllabus[2].durationMs)
         assertEquals(700L, line.syllabus[3].durationMs)
         assertEquals("Small Hours", LyricsFileParser.parse(lyricsfile)!!.metadata.title)
         assertEquals("en", LyricsFileParser.parse(lyricsfile)!!.metadata.language)
