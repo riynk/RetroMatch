@@ -32,7 +32,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
         setTextIsSelectable(false)
     }
 
-    fun setHighlightColor(color: Int) {
+    fun setKaraokeHighlightColor(color: Int) {
         highlightColor = color
         updateTime(lastPositionMs)
     }
