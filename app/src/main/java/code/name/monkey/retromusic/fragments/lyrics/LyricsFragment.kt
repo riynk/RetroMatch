@@ -264,6 +264,16 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
         when (item.itemId) {
             R.id.action_search -> openUrl(googleSearchLrcUrl)
             R.id.action_fetch_lyrics -> fetchLyricsFromLrcLib()
+            R.id.action_cycle_lyrics_display -> {
+                val mode = binding.ttmlLyricsView.cycleDisplayMode()
+                val label = when (mode) {
+                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ORIGINAL -> R.string.lyrics_display_original
+                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLATION -> R.string.lyrics_display_translation
+                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.TRANSLITERATION -> R.string.lyrics_display_transliteration
+                    code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView.DisplayMode.ALL -> R.string.lyrics_display_all
+                }
+                item.title = getString(label)
+            }
             R.id.action_import_ttml -> {
                 pendingTtmlImportSong = song
                 importTtmlLauncher.launch(arrayOf("*/*"))
