@@ -100,6 +100,7 @@ android {
 
 
 dependencies {
+    implementation("net.sf.kxml:kxml2:2.3.0")
     testImplementation("junit:junit:4.13.2")
     implementation(project(":appthemehelper"))
     implementation(libs.gridLayout)
