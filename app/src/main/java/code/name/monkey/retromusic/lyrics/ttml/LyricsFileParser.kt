@@ -43,7 +43,11 @@ object LyricsFileParser {
 
             val metadata = document["metadata"] as? Map<*, *> ?: return null
             if (metadata["title"] !is String || metadata["artist"] !is String) return null
-            if (metadata["instrumental"] == true) return null
+            val instrumental = metadata["instrumental"]
+            if (instrumental != null && instrumental !is Boolean) return null
+            if (instrumental == true) return null
+            val trackDuration = metadata["duration_ms"].asLongOrNull()
+            if (metadata["duration_ms"] != null && (trackDuration == null || trackDuration < 0L)) return null
 
             val sourceLines = document["lines"] as? List<*> ?: return null
             if (sourceLines.isEmpty() || sourceLines.size > MAX_LINES) return null
@@ -53,18 +57,28 @@ object LyricsFileParser {
                 val sourceText = line["text"] as? String ?: return@mapNotNull null
                 val startMs = line["start_ms"].asLongOrNull() ?: return@mapNotNull null
                 if (startMs < 0L) return@mapNotNull null
-                val endMs = line["end_ms"].asLongOrNull()
-                if (endMs != null && endMs < startMs) return@mapNotNull null
+                val rawEndMs = line["end_ms"]
+                val endMs = rawEndMs.asLongOrNull()
+                if ((rawEndMs != null && endMs == null) || (endMs != null && endMs < startMs)) {
+                    return@mapNotNull null
+                }
 
-                val rawWords = line["words"] as? List<*> ?: emptyList<Any?>()
+                val wordsValue = line["words"]
+                val rawWords = when (wordsValue) {
+                    null -> emptyList()
+                    is List<*> -> wordsValue
+                    else -> return@mapNotNull null
+                }
                 if (rawWords.size > MAX_WORDS_PER_LINE) return@mapNotNull null
                 val words = rawWords.mapNotNull { word ->
                     val item = word as? Map<*, *> ?: return@mapNotNull null
                     val text = item["text"] as? String ?: return@mapNotNull null
                     val wordStart = item["start_ms"].asLongOrNull()
                         ?: return@mapNotNull null
-                    val wordEnd = item["end_ms"].asLongOrNull()
+                    val rawWordEnd = item["end_ms"]
+                    val wordEnd = rawWordEnd.asLongOrNull()
                     if (text.isEmpty() || wordStart < 0L ||
+                        (rawWordEnd != null && wordEnd == null) ||
                         (wordEnd != null && wordEnd < wordStart)
                     ) {
                         return@mapNotNull null
