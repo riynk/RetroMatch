@@ -15,18 +15,22 @@ object TtmlTransliterator {
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun transliterateWithIcu(source: String): String? = try {
-        val availableIds = java.util.Collections.list(
-            android.icu.text.Transliterator.getAvailableIDs()
-        )
-        if ("Any-Latin" !in availableIds) return null
-
-        android.icu.text.Transliterator.getInstance("Any-Latin")
-            .transliterate(source)
-            .takeIf { it.isNotBlank() && it != source }
-    } catch (_: RuntimeException) {
-        null
-    } catch (_: LinkageError) {
-        null
+    private fun transliterateWithIcu(source: String): String? {
+        return try {
+            val availableIds = java.util.Collections.list(
+                android.icu.text.Transliterator.getAvailableIDs()
+            )
+            if ("Any-Latin" !in availableIds) {
+                null
+            } else {
+                android.icu.text.Transliterator.getInstance("Any-Latin")
+                    .transliterate(source)
+                    .takeIf { it.isNotBlank() && it != source }
+            }
+        } catch (_: RuntimeException) {
+            null
+        } catch (_: LinkageError) {
+            null
+        }
     }
 }
