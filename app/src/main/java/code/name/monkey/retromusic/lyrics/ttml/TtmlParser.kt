@@ -101,6 +101,12 @@ object TtmlParser {
 
         val timeMs = parseTime(begin)
         val endMs = parseTime(end)
+        // Optional line-level annotations are kept separate from timed source spans.
+        // They never affect the original karaoke timing or syllable offsets.
+        val translation = parser.getAttributeValue(null, "translation")
+            ?: parser.getAttributeValue(null, "data-translation")
+        val transliteration = parser.getAttributeValue(null, "transliteration")
+            ?: parser.getAttributeValue(null, "data-transliteration")
         val syllabus = mutableListOf<TtmlSyllable>()
         val textBuilder = StringBuilder()
         var insideParenthesis = false
@@ -153,7 +159,9 @@ object TtmlParser {
             timeMs = timeMs,
             durationMs = (endMs - timeMs).coerceAtLeast(0L),
             text = lineText,
-            syllabus = syllabus
+            syllabus = syllabus,
+            translation = translation?.takeIf { it.isNotBlank() },
+            transliteration = transliteration?.takeIf { it.isNotBlank() }
         )
     }
 
