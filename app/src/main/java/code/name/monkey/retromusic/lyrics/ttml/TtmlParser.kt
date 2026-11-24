@@ -13,333 +13,237 @@ import org.xmlpull.v1.XmlPullParser
 import org.kxml2.io.KXmlParser
 
 /**
- * Parser para archivos TTML (Timed Text Markup Language)
- * Basado en el formato de Apple Music usado por YouLyPlus
+ * Parses TTML lyrics while preserving the source whitespace.
+ *
+ * A span's trailing whitespace is significant: it separates words. A span
+ * without trailing whitespace may continue into the next timed span (for
+ * example, syllable-level karaoke). The parser must not guess word boundaries
+ * by inserting spaces where the TTML document has none.
  */
 object TtmlParser {
 
     private const val NS_ITUNES = "http://music.apple.com/lyric-ttml-internal"
 
     fun parseTtml(content: String): TtmlLyrics {
+        if (content.isBlank()) return TtmlLyrics()
         return try {
             val parser = KXmlParser().apply {
                 setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
                 setInput(content.reader())
             }
-
-            val result = parseTtmlDocument(parser)
-
-            result
-        } catch (e: Exception) {
-            TtmlLyrics() // Return empty lyrics on error
+            parseTtmlDocument(parser)
+        } catch (_: Exception) {
+            TtmlLyrics()
         }
     }
 
     private fun parseTtmlDocument(parser: XmlPullParser): TtmlLyrics {
-        val metadata = TtmlMetadata()
         val lines = mutableListOf<TtmlLine>()
         var timingMode = "Word"
 
         var eventType = parser.eventType
-            while (eventType != XmlPullParser.END_DOCUMENT) {
-            when (eventType) {
-                XmlPullParser.START_TAG -> {
-                    when (parser.name) {
-                        "tt" -> {
-                            // Get timing mode from root element
-                            timingMode = parser.getAttributeValue(NS_ITUNES, "timing") ?: "Word"
-                        }
-                        "div" -> {
-                            // Parse lyrics lines within div
-                                lines.addAll(parseDiv(parser))
-                        }
-                    }
+        while (eventType != XmlPullParser.END_DOCUMENT) {
+            if (eventType == XmlPullParser.START_TAG) {
+                when (parser.name) {
+                    "tt" -> timingMode =
+                        parser.getAttributeValue(NS_ITUNES, "timing") ?: "Word"
+                    "div" -> lines.addAll(parseDiv(parser))
                 }
             }
             eventType = parser.next()
         }
 
-        // --- Nueva lógica para unir palabras entre líneas ---
+        // A word may be split across adjacent paragraph lines. Preserve the
+        // source's text and mark only the continuation metadata on the next line.
         for (i in 1 until lines.size) {
-            val prevLine = lines[i - 1]
-            val currLine = lines[i]
-            if (prevLine.syllabus.isNotEmpty() && currLine.syllabus.isNotEmpty()) {
-                val lastPrev = prevLine.syllabus.last()
-                val firstCurr = currLine.syllabus.first()
-                // Si la última sílaba de la línea anterior y la primera de la actual no terminan ni empiezan con espacio, es una palabra partida
-                if (!lastPrev.text.endsWith(" ") && !firstCurr.text.startsWith(" ")) {
-                    // Marcar la primera sílaba de la línea actual como continuación de palabra
-                    val newFirst = firstCurr.copy(continuesWord = true)
-                    val newSyllabus = currLine.syllabus.toMutableList()
-                    newSyllabus[0] = newFirst
-                    lines[i] = currLine.copy(syllabus = newSyllabus)
-                }
+            val previous = lines[i - 1]
+            val current = lines[i]
+            val lastPrevious = previous.syllabus.lastOrNull()
+            val firstCurrent = current.syllabus.firstOrNull()
+            if (lastPrevious != null && firstCurrent != null &&
+                !lastPrevious.text.endsWithWhitespace() &&
+                !firstCurrent.text.startsWithWhitespace()
+            ) {
+                val updated = current.syllabus.toMutableList()
+                updated[0] = firstCurrent.copy(continuesWord = true)
+                lines[i] = current.copy(syllabus = updated)
             }
         }
 
-        return TtmlLyrics(
-            type = timingMode,
-            metadata = metadata,
-            lines = lines
-        )
+        return TtmlLyrics(type = timingMode, metadata = TtmlMetadata(), lines = lines)
     }
 
     private fun parseDiv(parser: XmlPullParser): List<TtmlLine> {
         val lines = mutableListOf<TtmlLine>()
         var depth = 1
-
         while (depth > 0) {
             when (parser.next()) {
                 XmlPullParser.START_TAG -> {
                     if (parser.name == "p") {
-                        parseParagraph(parser)?.let { lines.add(it) }
+                        parseParagraph(parser)?.let(lines::add)
                     } else {
                         depth++
                     }
                 }
-                XmlPullParser.END_TAG -> {
-                    if (parser.name == "div") {
-                        depth--
-                    }
-                }
+                XmlPullParser.END_TAG -> if (parser.name == "div") depth--
             }
         }
         return lines
     }
 
     private fun parseParagraph(parser: XmlPullParser): TtmlLine? {
-        val beginAttr = parser.getAttributeValue(null, "begin")
-        val endAttr = parser.getAttributeValue(null, "end")
-        
-        if (beginAttr == null || endAttr == null) {
-            // Consumir hasta el cierre del <p>
-            var depth = 1
-            while (depth > 0) {
-                when (parser.next()) {
-                    XmlPullParser.START_TAG -> depth++
-                    XmlPullParser.END_TAG -> depth--
-                }
-            }
+        val begin = parser.getAttributeValue(null, "begin")
+        val end = parser.getAttributeValue(null, "end")
+        if (begin == null || end == null) {
+            consumeElement(parser, "p")
             return null
         }
 
-        val timeMs = parseTime(beginAttr)
-        val endMs = parseTime(endAttr)
-        val durationMs = endMs - timeMs
-
+        val timeMs = parseTime(begin)
+        val endMs = parseTime(end)
         val syllabus = mutableListOf<TtmlSyllable>()
         val textBuilder = StringBuilder()
         var insideParenthesis = false
-        var previousContinuesWord = false
-
-        // Procesar contenido del <p>
         var depth = 1
+
         while (depth > 0) {
             when (parser.next()) {
                 XmlPullParser.START_TAG -> {
                     if (parser.name == "span") {
                         val syllable = parseSpan(parser, insideParenthesis)
                         if (syllable != null) {
-                            // Detectar apertura de paréntesis
-                            if (syllable.text.startsWith("(")) {
-                                insideParenthesis = true
-                            }
-                            
-                            // Actualizar isBackground si estamos dentro de paréntesis
-                            val updatedSyllable = if (insideParenthesis) {
+                            if (syllable.text.startsWith("(")) insideParenthesis = true
+                            val backgroundSyllable = if (insideParenthesis) {
                                 syllable.copy(isBackground = true)
                             } else {
                                 syllable
                             }
-                            
-                            // Eliminar paréntesis
-                            var cleanedText = updatedSyllable.text.replace("(", "").replace(")", "")
-
-                            // Si la sílaba anterior continúa palabra, evitar espacios iniciales aquí
-                            if (previousContinuesWord) {
-                                cleanedText = cleanedText.trimStart()
-                            }
-
-                            // Detectar si continúa en la siguiente palabra (no termina con espacio)
-                            val continuesWord = cleanedText.isNotEmpty() && !cleanedText.endsWith(" ")
-
-                            // Si continúa la palabra, eliminar el espacio final
-                            val finalText = if (continuesWord) {
-                                cleanedText.trimEnd()
-                            } else {
-                                cleanedText
-                            }
-
-                            if (finalText.isNotEmpty()) {
-                                val cleanedSyllable = updatedSyllable.copy(
-                                    text = finalText,
+                            val cleanedText = backgroundSyllable.text
+                                .replace("(", "")
+                                .replace(")", "")
+                            if (cleanedText.isNotEmpty()) {
+                                val continuesWord = !cleanedText.endsWithWhitespace()
+                                val cleaned = backgroundSyllable.copy(
+                                    text = cleanedText,
                                     continuesWord = continuesWord
                                 )
-
-                                syllabus.add(cleanedSyllable)
-                                textBuilder.append(finalText)
+                                syllabus.add(cleaned)
+                                textBuilder.append(cleanedText)
                             }
-
-                            previousContinuesWord = continuesWord
-                            
-                            // Detectar cierre de paréntesis
-                            if (syllable.text.endsWith(")")) {
-                                insideParenthesis = false
-                            }
+                            if (syllable.text.endsWith(")")) insideParenthesis = false
                         }
-                        // parseSpan ya consumió su END_TAG
                     } else {
                         depth++
                     }
                 }
                 XmlPullParser.TEXT -> {
                     val text = parser.text
-                    if (!text.isNullOrBlank()) {
-                        textBuilder.append(text)
-                    }
+                    if (!text.isNullOrEmpty()) textBuilder.append(text)
                 }
-                XmlPullParser.END_TAG -> {
-                    if (parser.name == "p") {
-                        depth--
-                    }
-                }
+                XmlPullParser.END_TAG -> if (parser.name == "p") depth--
             }
         }
 
-        // Construir el texto de la línea a partir de las sílabas, respetando continuesWord
-        val lineText = buildString {
-            syllabus.forEachIndexed { i, syl ->
-                if (i > 0 && !syl.continuesWord) append(" ")
-                append(syl.text)
-            }
-        }.trim()
-        if (lineText.isEmpty() && syllabus.isEmpty()) {
-            return null
-        }
+        val lineText = textBuilder.toString().trim()
+        if (lineText.isEmpty() && syllabus.isEmpty()) return null
 
         return TtmlLine(
             timeMs = timeMs,
-            durationMs = durationMs,
+            durationMs = (endMs - timeMs).coerceAtLeast(0L),
             text = lineText,
             syllabus = syllabus
         )
     }
 
-    private fun parseSpan(parser: XmlPullParser, isBackground: Boolean = false): TtmlSyllable? {
-        val beginAttr = parser.getAttributeValue(null, "begin")
-        val endAttr = parser.getAttributeValue(null, "end")
-        val durAttr = parser.getAttributeValue(null, "dur")
+    private fun parseSpan(
+        parser: XmlPullParser,
+        isBackground: Boolean = false
+    ): TtmlSyllable? {
+        val begin = parser.getAttributeValue(null, "begin")
+        val end = parser.getAttributeValue(null, "end")
+        val duration = parser.getAttributeValue(null, "dur")
 
-        if (beginAttr == null) {
-            // Consumir hasta el cierre del <span>
-            var depth = 1
-            while (depth > 0) {
-                when (parser.next()) {
-                    XmlPullParser.START_TAG -> depth++
-                    XmlPullParser.END_TAG -> depth--
-                }
-            }
+        if (begin == null || (end == null && duration == null)) {
+            consumeElement(parser, "span")
             return null
         }
 
-        val timeMs = parseTime(beginAttr)
-        val endMs: Long
-        val durationMs: Long
-
-        // Soportar tanto 'end' como 'dur'
-        if (endAttr != null) {
-            endMs = parseTime(endAttr)
-            durationMs = endMs - timeMs
-        } else if (durAttr != null) {
-            durationMs = parseDuration(durAttr)
-            endMs = timeMs + durationMs
-        } else {
-            // Sin end ni dur, consumir y retornar null
-            var depth = 1
-            while (depth > 0) {
-                when (parser.next()) {
-                    XmlPullParser.START_TAG -> depth++
-                    XmlPullParser.END_TAG -> depth--
-                }
-            }
-            return null
+        val timeMs = parseTime(begin)
+        val durationMs = when {
+            end != null -> (parseTime(end) - timeMs).coerceAtLeast(0L)
+            else -> parseDuration(duration!!)
         }
 
-        val textBuilder = StringBuilder()
+        val text = StringBuilder()
         var depth = 1
-
-        // Procesar contenido del <span>
         while (depth > 0) {
             when (parser.next()) {
-                XmlPullParser.TEXT -> {
-                    val text = parser.text
-                    if (!text.isNullOrBlank()) {
-                        textBuilder.append(text)
-                    }
-                }
+                XmlPullParser.TEXT -> parser.text?.let(text::append)
                 XmlPullParser.START_TAG -> depth++
-                XmlPullParser.END_TAG -> {
-                    if (parser.name == "span") {
-                        depth--
-                    }
-                }
+                XmlPullParser.END_TAG -> if (parser.name == "span") depth--
             }
         }
 
-        val text = textBuilder.toString()
-        if (text.isBlank()) return null
-
+        val value = text.toString()
+        if (value.isBlank()) return null
         return TtmlSyllable(
-            text = text,
+            text = value,
             timeMs = timeMs,
             durationMs = durationMs,
             isBackground = isBackground
         )
     }
 
-    /**
-     * Convierte un tiempo TTML (formato: HH:MM:SS.mmm o MM:SS.mmm) a milisegundos
-     */
-    private fun parseTime(timeStr: String): Long {
-        val parts = timeStr.split(":")
-        
-        return when (parts.size) {
-            3 -> {
-                // HH:MM:SS.mmm
-                val hours = parts[0].toLongOrNull() ?: 0
-                val minutes = parts[1].toLongOrNull() ?: 0
-                val seconds = parts[2].toDoubleOrNull() ?: 0.0
-                
-                (hours * 3600_000 + minutes * 60_000 + (seconds * 1000).toLong())
+    private fun consumeElement(parser: XmlPullParser, elementName: String) {
+        var depth = 1
+        while (depth > 0) {
+            when (parser.next()) {
+                XmlPullParser.START_TAG -> depth++
+                XmlPullParser.END_TAG -> {
+                    depth--
+                    if (depth == 0 && parser.name != elementName) return
+                }
             }
-            2 -> {
-                // MM:SS.mmm
-                val minutes = parts[0].toLongOrNull() ?: 0
-                val seconds = parts[1].toDoubleOrNull() ?: 0.0
-                
-                (minutes * 60_000 + (seconds * 1000).toLong())
-            }
-            else -> 0
         }
     }
 
-    /**
-     * Parsea duraciones en formato "3.917s" o "3917ms"
-     */
-    private fun parseDuration(durStr: String): Long {
-        return when {
-            durStr.endsWith("ms") -> {
-                // Formato: "3917ms"
-                durStr.removeSuffix("ms").toLongOrNull() ?: 0L
+    private fun String.endsWithWhitespace(): Boolean =
+        isNotEmpty() && last().isWhitespace()
+
+    private fun String.startsWithWhitespace(): Boolean =
+        isNotEmpty() && first().isWhitespace()
+
+    /** Supports TTML clock values in HH:MM:SS.mmm and MM:SS.mmm forms. */
+    private fun parseTime(value: String): Long {
+        val parts = value.split(":")
+        return when (parts.size) {
+            3 -> {
+                val hours = parts[0].toLongOrNull() ?: return 0L
+                val minutes = parts[1].toLongOrNull() ?: return 0L
+                val seconds = parts[2].toDoubleOrNull() ?: return 0L
+                if (minutes !in 0..59 || seconds < 0.0 || seconds >= 60.0) return 0L
+                hours * 3_600_000L + minutes * 60_000L + (seconds * 1000).toLong()
             }
-            durStr.endsWith("s") -> {
-                val seconds = durStr.removeSuffix("s").toDoubleOrNull() ?: 0.0
-                (seconds * 1000).toLong()
+            2 -> {
+                val minutes = parts[0].toLongOrNull() ?: return 0L
+                val seconds = parts[1].toDoubleOrNull() ?: return 0L
+                if (seconds < 0.0 || seconds >= 60.0) return 0L
+                minutes * 60_000L + (seconds * 1000).toLong()
             }
-            else -> {
-                // Asumir milisegundos si no hay sufijo
-                durStr.toLongOrNull() ?: 0L
-            }
+            else -> 0L
         }
+    }
+
+    /** Supports numeric milliseconds and TTML duration suffixes such as 1.5s/1500ms. */
+    private fun parseDuration(value: String): Long {
+        val duration = when {
+            value.endsWith("ms") ->
+                value.removeSuffix("ms").toDoubleOrNull()?.let { it }
+            value.endsWith("s") ->
+                value.removeSuffix("s").toDoubleOrNull()?.times(1000.0)
+            else -> value.toDoubleOrNull()
+        } ?: return 0L
+        if (!duration.isFinite() || duration < 0.0) return 0L
+        return duration.toLong()
     }
 }
