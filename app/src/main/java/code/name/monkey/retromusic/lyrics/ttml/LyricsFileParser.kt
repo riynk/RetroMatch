@@ -29,9 +29,9 @@ object LyricsFileParser {
 
         return try {
             val options = LoaderOptions().apply {
-                isAllowDuplicateKeys = false
-                maxAliasesForCollections = 0
-                codePointLimit = MAX_DOCUMENT_CHARS
+                setAllowDuplicateKeys(false)
+                setMaxAliasesForCollections(0)
+                setCodePointLimit(MAX_DOCUMENT_CHARS)
             }
             val document = Yaml(SafeConstructor(options)).load<Any?>(content)
                 as? Map<*, *> ?: return null
@@ -68,7 +68,9 @@ object LyricsFileParser {
                         )
                     }
                     .orEmpty()
-                    .sortedBy { it.startMs }
+                if (words.zipWithNext().any { (first, second) -> first.startMs > second.startMs }) {
+                    return@mapNotNull null
+                }
 
                 val syllables = words.mapIndexed { index, word ->
                     val inferredEnd = words.getOrNull(index + 1)?.startMs ?: endMs
