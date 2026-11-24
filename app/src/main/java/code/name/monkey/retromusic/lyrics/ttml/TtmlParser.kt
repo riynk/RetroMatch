@@ -10,7 +10,7 @@ import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLyrics
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlMetadata
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlSyllable
 import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserFactory
+import org.kxml2.io.KXmlParser
 
 /**
  * Parser para archivos TTML (Timed Text Markup Language)
@@ -20,19 +20,17 @@ object TtmlParser {
 
     private const val NS_ITUNES = "http://music.apple.com/lyric-ttml-internal"
 
-    // Reuse factory to avoid expensive re-instantiation
-    private val factory: XmlPullParserFactory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }
-
     fun parseTtml(content: String): TtmlLyrics {
         return try {
-            val parser = factory.newPullParser()
-            parser.setInput(content.reader())
+            val parser = KXmlParser().apply {
+                setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
+                setInput(content.reader())
+            }
 
             val result = parseTtmlDocument(parser)
 
             result
         } catch (e: Exception) {
-            android.util.Log.e("TtmlParser", "Error parseando TTML", e)
             TtmlLyrics() // Return empty lyrics on error
         }
     }
