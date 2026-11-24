@@ -65,7 +65,7 @@ object LyricsFileParser {
 
                 val wordsValue = line["words"]
                 val rawWords = when (wordsValue) {
-                    null -> emptyList()
+                    null -> emptyList<Any?>()
                     is List<*> -> wordsValue
                     else -> return@mapNotNull null
                 }
