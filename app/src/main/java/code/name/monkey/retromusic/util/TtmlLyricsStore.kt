@@ -22,14 +22,15 @@ internal class TtmlLyricsStore(private val directory: File) {
         var temporary: File? = null
         return try {
             if (!directory.exists() && !directory.mkdirs()) return false
-            temporary = File.createTempFile("${target.name}.", ".tmp", directory)
-            temporary.outputStream().use { output ->
+            val tempFile = File.createTempFile("${target.name}.", ".tmp", directory)
+            temporary = tempFile
+            tempFile.outputStream().use { output ->
                 output.write(content.toByteArray(Charsets.UTF_8))
                 output.fd.sync()
             }
             // Keep the previous file intact unless the complete replacement can be renamed
             // into place. The temporary file is in the same directory for an atomic rename.
-            temporary.renameTo(target)
+            tempFile.renameTo(target)
         } catch (_: IOException) {
             false
         } finally {
