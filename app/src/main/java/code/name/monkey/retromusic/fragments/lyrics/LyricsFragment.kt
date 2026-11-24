@@ -43,6 +43,8 @@ import code.name.monkey.retromusic.fragments.base.AbsMainActivityFragment
 import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import code.name.monkey.retromusic.helper.MusicProgressViewUpdateHelper
 import code.name.monkey.retromusic.lyrics.LrcView
+import code.name.monkey.retromusic.lyrics.ttml.LyricsFileParser
+import code.name.monkey.retromusic.lyrics.ttml.TtmlLyricsSerializer
 import code.name.monkey.retromusic.util.TtmlLyricsStore
 import code.name.monkey.retromusic.model.AudioTagInfo
 import code.name.monkey.retromusic.model.Song
@@ -467,38 +469,52 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
     }
 
     private fun showFetchedLyricsPreview(requestedSong: Song, fetched: FetchedLyrics) {
-        val isSynced = code.name.monkey.retromusic.network.LyricsText.hasTimestamps(fetched.preferredLyrics)
+        val parsedLyricsFile = fetched.lyricsfile?.let(LyricsFileParser::parse)
+        val lyricsFileText = parsedLyricsFile?.lines?.joinToString("\n") { it.text }.orEmpty()
+        val previewLyrics = fetched.preferredLyrics.ifBlank { lyricsFileText }
+        val hasWordSync = parsedLyricsFile?.lines?.any { it.syllabus.isNotEmpty() } == true
+        val hasLyricsFile = parsedLyricsFile?.lines?.isNotEmpty() == true
+        val isSynced = hasWordSync || hasLyricsFile ||
+            code.name.monkey.retromusic.network.LyricsText.hasTimestamps(fetched.preferredLyrics)
         val details = buildString {
             append(fetched.artist)
             if (fetched.album.isNotBlank()) append(" • ").append(fetched.album)
             append("\n")
-            append(if (isSynced) getString(R.string.synced_lyrics) else getString(R.string.normal_lyrics))
+            append(
+                when {
+                    hasWordSync -> getString(R.string.lyrics_word_synced)
+                    isSynced -> getString(R.string.synced_lyrics)
+                    else -> getString(R.string.normal_lyrics)
+                }
+            )
             append("\n\n")
-            append(fetched.preferredLyrics)
+            append(previewLyrics)
         }
         android.app.AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.lyrics_preview_title, fetched.title))
             .setMessage(details)
             .setPositiveButton(R.string.save) { _, _ ->
-                if (isSynced) {
-                    if (MusicPlayerRemote.currentSong.id != requestedSong.id) {
-                        Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
-                    } else {
-                        LyricUtil.writeLrc(requestedSong, fetched.preferredLyrics)
+                if (MusicPlayerRemote.currentSong.id != requestedSong.id) {
+                    Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
+                } else if (hasLyricsFile && parsedLyricsFile != null) {
+                    val ttml = TtmlLyricsSerializer.serialize(parsedLyricsFile)
+                    val saved = ttml != null && TtmlLyricsStore.appStore().save(requestedSong.data, ttml)
+                    if (saved) {
                         loadLyrics()
-                    }
-                } else {
-                    if (MusicPlayerRemote.currentSong.id == requestedSong.id) {
-                        editNormalLyrics(fetched.preferredLyrics)
+                        Toast.makeText(requireContext(), R.string.lyrics_file_saved, Toast.LENGTH_LONG).show()
                     } else {
-                        Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), R.string.lyrics_file_save_failed, Toast.LENGTH_LONG).show()
                     }
+                } else if (isSynced) {
+                    LyricUtil.writeLrc(requestedSong, fetched.preferredLyrics)
+                    loadLyrics()
+                } else {
+                    editNormalLyrics(fetched.preferredLyrics)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
-
 
     private fun loadNormalLyrics() {
         val file = File(song.data)
