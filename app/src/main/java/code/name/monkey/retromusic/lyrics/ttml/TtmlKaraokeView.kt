@@ -8,14 +8,19 @@ import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.util.AttributeSet
+import android.view.Gravity
+import android.view.animation.DecelerateInterpolator
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.core.content.res.ResourcesCompat
+import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLyrics
 
 /**
  * Displays timed source lyrics and optional line-level translation/transliteration.
- * Secondary text is appended without modifying source syllable offsets or timing.
+ * Secondary text is styled independently and never changes source word offsets.
  */
 class TtmlKaraokeView @JvmOverloads constructor(
     context: Context,
@@ -27,13 +32,28 @@ class TtmlKaraokeView @JvmOverloads constructor(
 
     private var lyrics: TtmlLyrics? = null
     private var lastLineIndex = -1
+    private var lastRenderedMode: DisplayMode? = null
     private var highlightColor: Int = currentTextColor
+    private var secondaryTextColor: Int = currentTextColor
     private var displayMode = DisplayMode.ORIGINAL
     private var lastPositionMs: Long = 0L
+    private val generatedTransliterations = mutableMapOf<Int, String>()
 
     init {
-        gravity = android.view.Gravity.CENTER
+        gravity = Gravity.CENTER
         setTextIsSelectable(false)
+        includeFontPadding = false
+        letterSpacing = 0.012f
+        typeface = ResourcesCompat.getFont(context, R.font.manrope) ?: typeface
+        setLineSpacing(6f * resources.displayMetrics.scaledDensity, 1.06f)
+        val secondaryTextAttributes = context.obtainStyledAttributes(
+            intArrayOf(android.R.attr.textColorSecondary)
+        )
+        secondaryTextColor = try {
+            secondaryTextAttributes.getColorStateList(0)?.defaultColor ?: currentTextColor
+        } finally {
+            secondaryTextAttributes.recycle()
+        }
     }
 
     fun setKaraokeHighlightColor(color: Int) {
@@ -55,8 +75,10 @@ class TtmlKaraokeView @JvmOverloads constructor(
     fun setLyrics(value: TtmlLyrics?) {
         lyrics = value?.takeIf { it.lines.isNotEmpty() }
         lastLineIndex = -1
+        lastRenderedMode = null
         lastPositionMs = 0L
         displayMode = DisplayMode.ORIGINAL
+        generatedTransliterations.clear()
         isSelected = lyrics != null
         updateTime(0L)
     }
@@ -77,11 +99,13 @@ class TtmlKaraokeView @JvmOverloads constructor(
         val secondary = buildList {
             when (displayMode) {
                 DisplayMode.ORIGINAL -> Unit
-                DisplayMode.TRANSLATION -> line.translation?.takeIf { it.isNotBlank() }?.let(::add)
-                DisplayMode.TRANSLITERATION -> line.transliteration?.takeIf { it.isNotBlank() }?.let(::add)
+                DisplayMode.TRANSLATION ->
+                    line.translation?.takeIf { it.isNotBlank() }?.let(::add)
+                DisplayMode.TRANSLITERATION ->
+                    transliterationForLine(lineIndex, line)?.let(::add)
                 DisplayMode.ALL -> {
                     line.translation?.takeIf { it.isNotBlank() }?.let(::add)
-                    line.transliteration?.takeIf { it.isNotBlank() }?.let(::add)
+                    transliterationForLine(lineIndex, line)?.let(::add)
                 }
             }
         }
@@ -90,6 +114,28 @@ class TtmlKaraokeView @JvmOverloads constructor(
             secondary.forEach { append('\n').append(it) }
         }
         val rendered = SpannableString(renderedText)
+        val secondaryStart = line.text.length
+        if (secondary.isNotEmpty()) {
+            rendered.setSpan(
+                RelativeSizeSpan(0.72f),
+                secondaryStart,
+                rendered.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            rendered.setSpan(
+                ForegroundColorSpan(secondaryTextColor),
+                secondaryStart,
+                rendered.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            rendered.setSpan(
+                StyleSpan(Typeface.NORMAL),
+                secondaryStart,
+                rendered.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
         val syllables = line.syllabus
         val active = syllables.indexOfLast { syllable ->
             lastPositionMs >= syllable.timeMs &&
@@ -99,33 +145,64 @@ class TtmlKaraokeView @JvmOverloads constructor(
 
         var searchFrom = 0
         syllables.forEachIndexed { index, syllable ->
-            val start = line.text.indexOf(syllable.text, searchFrom)
-            if (start >= 0) {
-                val end = (start + syllable.text.length).coerceAtMost(line.text.length)
-                if (index == active && end > start) {
+            val range = findWordRange(line.text, syllable.text, searchFrom)
+            if (range != null) {
+                if (index == active) {
                     rendered.setSpan(
                         ForegroundColorSpan(highlightColor),
-                        start,
-                        end,
+                        range.first,
+                        range.last + 1,
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                     )
                     rendered.setSpan(
                         StyleSpan(Typeface.BOLD),
-                        start,
-                        end,
+                        range.first,
+                        range.last + 1,
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                     )
                 }
-                searchFrom = end
+                searchFrom = range.last + 1
             }
         }
 
-        if (lineIndex != lastLineIndex) {
+        if (lineIndex != lastLineIndex || displayMode != lastRenderedMode) {
             animate().cancel()
-            alpha = 0.65f
-            animate().alpha(1f).setDuration(180L).start()
+            alpha = 0.55f
+            translationY = 8f * resources.displayMetrics.density
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(220L)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
             lastLineIndex = lineIndex
+            lastRenderedMode = displayMode
         }
         text = rendered
+    }
+
+    private fun transliterationForLine(
+        index: Int,
+        line: code.name.monkey.retromusic.model.lyrics.ttml.TtmlLine
+    ): String? {
+        line.transliteration?.takeIf { it.isNotBlank() }?.let { return it }
+        val generated = generatedTransliterations.getOrPut(index) {
+            TtmlTransliterator.toLatinOrNull(line.text).orEmpty()
+        }
+        return generated.takeIf { it.isNotBlank() }
+    }
+
+    private fun findWordRange(
+        source: String,
+        timedText: String,
+        searchFrom: Int
+    ): IntRange? {
+        val firstVisible = timedText.indexOfFirst { !it.isWhitespace() }
+        if (firstVisible < 0) return null
+        val lastVisible = timedText.indexOfLast { !it.isWhitespace() }
+        val visibleText = timedText.substring(firstVisible, lastVisible + 1)
+        val start = source.indexOf(visibleText, searchFrom)
+        if (start < 0) return null
+        return start until (start + visibleText.length).coerceAtMost(source.length)
     }
 }
