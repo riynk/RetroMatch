@@ -146,7 +146,11 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 }
 
                 val saved = withContext(Dispatchers.IO) {
-                    imported?.let { TtmlLyricsStore.appStore().save(targetSong.data, it) } == true
+                    val wasSaved = imported?.let {
+                        TtmlLyricsStore.appStore().save(targetSong.data, it)
+                    } == true
+                    if (wasSaved) LyricsFileStore.appStore().delete(targetSong.data)
+                    wasSaved
                 }
                 if (!isAdded) return@launch
                 if (saved) {
@@ -499,12 +503,20 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
                 if (MusicPlayerRemote.currentSong.id != requestedSong.id) {
                     Toast.makeText(requireContext(), R.string.lyrics_song_changed, Toast.LENGTH_SHORT).show()
                 } else if (hasLyricsFile && parsedLyricsFile != null) {
-                    val saved = LyricsFileStore.appStore().save(requestedSong.data, fetched.lyricsfile.orEmpty())
-                    if (saved) {
-                        loadLyrics()
-                        Toast.makeText(requireContext(), R.string.lyrics_file_saved, Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(requireContext(), R.string.lyrics_file_save_failed, Toast.LENGTH_LONG).show()
+                    lifecycleScope.launch {
+                        val saved = withContext(Dispatchers.IO) {
+                            val wasSaved = LyricsFileStore.appStore()
+                                .save(requestedSong.data, fetched.lyricsfile.orEmpty())
+                            if (wasSaved) TtmlLyricsStore.appStore().delete(requestedSong.data)
+                            wasSaved
+                        }
+                        if (!isAdded) return@launch
+                        if (saved) {
+                            loadLyrics()
+                            Toast.makeText(requireContext(), R.string.lyrics_file_saved, Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(requireContext(), R.string.lyrics_file_save_failed, Toast.LENGTH_LONG).show()
+                        }
                     }
                 } else if (isSynced) {
                     LyricUtil.writeLrc(requestedSong, fetched.preferredLyrics)
