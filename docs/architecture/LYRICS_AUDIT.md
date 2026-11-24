@@ -17,7 +17,7 @@ RetroMusic foundation already contains the lyrics feature:
 
 - **RetroMusic** remains the app shell, library, playback service, and current LRC presentation path.
 - **LocalPlayer** supplies the TTML model/parser foundation and is the visual reference for the future word-level karaoke surface.
-- **TimeLyr/LRCLIB** currently provides plain and synchronized LRC. Its current API payload does not establish a TTML source; a separate verified TTML acquisition adapter is still needed.
+- **TimeLyr/LRCLIB** provides plain lyrics, line-synchronized LRC, and a `lyricsfile` YAML payload. Lyricsfile 1.0 can contain word-level timings in `lines[].words`; RetroMatch reads it into the shared timed-lyrics model and keeps the original YAML as a private per-track sidecar.
 - **Metadator** remains a separate metadata/tag domain and is not coupled to lyric persistence.
 
 TTML and LRC are deliberately distinct formats. LRC remains the line-timed fallback; TTML retains word/syllable timing and must not be flattened into LRC during storage.
@@ -41,7 +41,7 @@ The active Room database is version 24 and does not register the legacy `LyricsE
 
 ## Remaining work and validation
 
-- Connect a verified TTML acquisition source to the lyrics flow. LRCLIB's current plain/synced LRC fields are not a TTML source.
+- Validate real LRCLIB `lyricsfile` records on Android devices and retain LRC as the compatibility fallback. Lyricsfile 1.0 is a draft; its `offset_ms` meaning is unresolved, so it is intentionally ignored, and missing end times are not invented or persisted.
 - Add TTML-aware UI selection and playback synchronization without replacing the existing LRC fallback.
 - Port LocalPlayer's karaoke typography/motion into the existing Android ViewBinding UI; do not add a second Compose app shell.
 - Run and inspect CI for lint, `:app:testNormalDebugUnitTest`, `:app:assembleNormalDebug`, and `:app:assembleFdroidDebug`.
