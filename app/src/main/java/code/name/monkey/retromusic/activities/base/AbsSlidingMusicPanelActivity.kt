@@ -43,7 +43,6 @@ import code.name.monkey.retromusic.CIRCLE_PLAY_BUTTON
 import code.name.monkey.retromusic.EXTRA_SONG_INFO
 import code.name.monkey.retromusic.KEEP_SCREEN_ON
 import code.name.monkey.retromusic.LIBRARY_CATEGORIES
-import code.name.monkey.retromusic.NOW_PLAYING_SCREEN_ID
 import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.SCREEN_ON_LYRICS
 import code.name.monkey.retromusic.SWIPE_ANYWHERE_NOW_PLAYING
@@ -74,28 +73,9 @@ import code.name.monkey.retromusic.extensions.show
 import code.name.monkey.retromusic.extensions.surfaceColor
 import code.name.monkey.retromusic.extensions.whichFragment
 import code.name.monkey.retromusic.fragments.LibraryViewModel
-import code.name.monkey.retromusic.fragments.NowPlayingScreen
-import code.name.monkey.retromusic.fragments.NowPlayingScreen.*
 import code.name.monkey.retromusic.fragments.base.AbsPlayerFragment
 import code.name.monkey.retromusic.fragments.other.MiniPlayerFragment
-import code.name.monkey.retromusic.fragments.player.adaptive.AdaptiveFragment
-import code.name.monkey.retromusic.fragments.player.blur.BlurPlayerFragment
-import code.name.monkey.retromusic.fragments.player.card.CardFragment
-import code.name.monkey.retromusic.fragments.player.cardblur.CardBlurFragment
-import code.name.monkey.retromusic.fragments.player.circle.CirclePlayerFragment
-import code.name.monkey.retromusic.fragments.player.classic.ClassicPlayerFragment
-import code.name.monkey.retromusic.fragments.player.color.ColorFragment
-import code.name.monkey.retromusic.fragments.player.fit.FitFragment
-import code.name.monkey.retromusic.fragments.player.flat.FlatPlayerFragment
-import code.name.monkey.retromusic.fragments.player.full.FullPlayerFragment
-import code.name.monkey.retromusic.fragments.player.gradient.GradientPlayerFragment
-import code.name.monkey.retromusic.fragments.player.material.MaterialFragment
-import code.name.monkey.retromusic.fragments.player.md3.MD3PlayerFragment
 import code.name.monkey.retromusic.fragments.player.normal.PlayerFragment
-import code.name.monkey.retromusic.fragments.player.peek.PeekPlayerFragment
-import code.name.monkey.retromusic.fragments.player.plain.PlainPlayerFragment
-import code.name.monkey.retromusic.fragments.player.simple.SimplePlayerFragment
-import code.name.monkey.retromusic.fragments.player.tiny.TinyPlayerFragment
 import code.name.monkey.retromusic.fragments.queue.PlayingQueueFragment
 import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import code.name.monkey.retromusic.model.CategoryInfo
@@ -126,7 +106,6 @@ abstract class AbsSlidingMusicPanelActivity : AbsMusicServiceActivity(),
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<FrameLayout>
     private lateinit var playerFragment: AbsPlayerFragment
     private var miniPlayerFragment: MiniPlayerFragment? = null
-    private var nowPlayingScreen: NowPlayingScreen? = null
     private var taskColor: Int = 0
     private var paletteColor: Int = android.graphics.Color.WHITE
     private var navigationBarColor = 0
@@ -247,9 +226,6 @@ abstract class AbsSlidingMusicPanelActivity : AbsMusicServiceActivity(),
     override fun onResume() {
         super.onResume()
         PreferenceUtil.registerOnSharedPreferenceChangedListener(this)
-        if (nowPlayingScreen != PreferenceUtil.nowPlayingScreen) {
-            postRecreate()
-        }
         if (bottomSheetBehavior.state == STATE_EXPANDED) {
             setMiniPlayerAlphaProgress(1f)
         }
@@ -271,18 +247,6 @@ abstract class AbsSlidingMusicPanelActivity : AbsMusicServiceActivity(),
                 miniPlayerFragment?.setUpButtons()
             }
 
-            NOW_PLAYING_SCREEN_ID -> {
-                chooseFragmentForTheme()
-                binding.slidingPanel.updateLayoutParams<ViewGroup.LayoutParams> {
-                    height = if (nowPlayingScreen != Peek) {
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    } else {
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    }
-                    onServiceConnected()
-                }
-            }
-
             ALBUM_COVER_TRANSFORM, CAROUSEL_EFFECT,
             ALBUM_COVER_STYLE, TOGGLE_VOLUME, EXTRA_SONG_INFO, CIRCLE_PLAY_BUTTON,
                 -> {
@@ -295,10 +259,8 @@ abstract class AbsSlidingMusicPanelActivity : AbsMusicServiceActivity(),
             }
 
             ADAPTIVE_COLOR_APP -> {
-                if (PreferenceUtil.nowPlayingScreen in listOf(Normal, Material, Flat)) {
-                    chooseFragmentForTheme()
-                    onServiceConnected()
-                }
+                chooseFragmentForTheme()
+                onServiceConnected()
             }
 
             LIBRARY_CATEGORIES -> {
@@ -429,28 +391,9 @@ abstract class AbsSlidingMusicPanelActivity : AbsMusicServiceActivity(),
             navigationBarColor = surfaceColor()
             setTaskDescColor(paletteColor)
             val isColorLight = paletteColor.isColorLight
-            if (PreferenceUtil.isAdaptiveColor && (nowPlayingScreen == Normal || nowPlayingScreen == Flat || nowPlayingScreen == Material)) {
+            if (PreferenceUtil.isAdaptiveColor) {
                 setLightNavigationBar(true)
                 setLightStatusBar(isColorLight)
-            } else if (nowPlayingScreen == Card || nowPlayingScreen == Blur || nowPlayingScreen == BlurCard) {
-                animateNavigationBarColor(android.graphics.Color.BLACK)
-                navigationBarColor = android.graphics.Color.BLACK
-                setLightStatusBar(false)
-                setLightNavigationBar(true)
-            } else if (nowPlayingScreen == Color || nowPlayingScreen == Tiny || nowPlayingScreen == Gradient) {
-                animateNavigationBarColor(paletteColor)
-                navigationBarColor = paletteColor
-                setLightNavigationBar(isColorLight)
-                setLightStatusBar(isColorLight)
-            } else if (nowPlayingScreen == Full) {
-                animateNavigationBarColor(paletteColor)
-                navigationBarColor = paletteColor
-                setLightNavigationBar(isColorLight)
-                setLightStatusBar(false)
-            } else if (nowPlayingScreen == Classic) {
-                setLightStatusBar(false)
-            } else if (nowPlayingScreen == Fit) {
-                setLightStatusBar(false)
             }
         }
     }
@@ -577,7 +520,6 @@ abstract class AbsSlidingMusicPanelActivity : AbsMusicServiceActivity(),
         // RetroMatch intentionally has one player surface. Keep the legacy
         // preference model for migration compatibility, but never instantiate
         // the retired Retro Music player variants.
-        nowPlayingScreen = PreferenceUtil.nowPlayingScreen
         val fragment: AbsPlayerFragment = PlayerFragment()
         supportFragmentManager.commit {
             replace(R.id.playerFragmentContainer, fragment)
