@@ -130,7 +130,7 @@ object LyricUtil {
     }
 
     private fun getLrcOriginalPath(filePath: String): String {
-        return filePath.replace(filePath.substring(filePath.lastIndexOf(".") + 1), "lrc")
+        return LrcSidecarPath.fromAudioPath(filePath)
     }
 
     @Throws(Exception::class)
