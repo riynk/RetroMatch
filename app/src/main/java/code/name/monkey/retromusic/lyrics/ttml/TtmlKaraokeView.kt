@@ -193,7 +193,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
         val density = resources.displayMetrics.density
         val availableHeight = (height.takeIf { it > 0 } ?: (textSize * 8f).toInt()).toFloat()
         val estimatedLineHeight = textSize * 1.65f + 6f * density
-        return (availableHeight / estimatedLineHeight).toInt().coerceIn(3, 7)
+        return (availableHeight / estimatedLineHeight).toInt().coerceIn(1, 7)
             .coerceAtMost(totalLines)
     }
 
