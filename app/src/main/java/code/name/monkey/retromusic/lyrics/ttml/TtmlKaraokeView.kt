@@ -103,6 +103,9 @@ class TtmlKaraokeView @JvmOverloads constructor(
         lastLineIndex = -1
         lastRenderedMode = null
         lastPositionMs = 0L
+        interpolatedPositionMs = 0.0
+        clockDriftMs = 0.0
+        clockInitialized = false
         progressSpan = null
         displayMode = DisplayMode.ORIGINAL
         generatedTransliterations.clear()
