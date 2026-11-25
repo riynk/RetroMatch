@@ -39,15 +39,12 @@ class TtmlKaraokeView @JvmOverloads constructor(
 
     private var lyrics: TtmlLyrics? = null
     private var lastLineIndex = -1
-    private var lastActiveSyllableIndex = -1
     private var lastRenderedMode: DisplayMode? = null
     private var highlightColor: Int = currentTextColor
     private var secondaryTextColor: Int = currentTextColor
     private var displayMode = DisplayMode.ORIGINAL
     private var lastPositionMs = 0L
-    private var progressSpan: KaraokeProgressSpan? = null
-    private var progressSpanStartMs = 0L
-    private var progressSpanEndMs = 0L
+    private val progressSpans = mutableListOf<TimedProgressSpan>()
     private var playbackRunning = false
     private var frameCallback: Choreographer.FrameCallback? = null
     private var lastFrameNanos = 0L
@@ -106,7 +103,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
         interpolatedPositionMs = 0.0
         clockDriftMs = 0.0
         clockInitialized = false
-        progressSpan = null
+        progressSpans.clear()
         displayMode = DisplayMode.ORIGINAL
         generatedTransliterations.clear()
         isSelected = lyrics != null
@@ -182,33 +179,26 @@ class TtmlKaraokeView @JvmOverloads constructor(
         lastPositionMs = positionMs.coerceAtLeast(0L)
         val lines = lyrics?.lines ?: run {
             text = null
-            progressSpan = null
+            progressSpans.clear()
             return
         }
         if (lines.isEmpty()) {
             text = null
-            progressSpan = null
+            progressSpans.clear()
             return
         }
 
         val activeLine = lines.indexOfLast { it.timeMs <= lastPositionMs }.coerceAtLeast(0)
-        val activeSyllable = lines[activeLine].syllabus.indexOfLast { it.timeMs <= lastPositionMs }
-        if (activeLine != lastLineIndex || activeSyllable != lastActiveSyllableIndex ||
-            displayMode != lastRenderedMode
-        ) {
+        if (activeLine != lastLineIndex || displayMode != lastRenderedMode) {
             renderLyrics(lastPositionMs)
             return
         }
 
-        // The frame clock changes only the active span's paint progress; text/layout stay stable.
-        val span = progressSpan ?: return
-        val fraction = if (progressSpanEndMs > progressSpanStartMs) {
-            ((lastPositionMs - progressSpanStartMs).toFloat() /
-                (progressSpanEndMs - progressSpanStartMs).toFloat()).coerceIn(0f, 1f)
-        } else {
-            0f
+        // Update each timed word's paint fraction without replacing text or recalculating layout.
+        if (progressSpans.isEmpty()) return
+        progressSpans.forEach { timed ->
+            timed.span.setProgress(progressFraction(lastPositionMs, timed.startMs, timed.endMs))
         }
-        span.setProgress(fraction)
         invalidate()
     }
 
@@ -220,12 +210,12 @@ class TtmlKaraokeView @JvmOverloads constructor(
     private fun renderLyrics(positionMs: Long) {
         val lines = lyrics?.lines ?: run {
             text = null
-            progressSpan = null
+            progressSpans.clear()
             return
         }
         if (lines.isEmpty()) {
             text = null
-            progressSpan = null
+            progressSpans.clear()
             return
         }
 
@@ -236,7 +226,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
             .coerceAtMost((lines.size - visibleCount).coerceAtLeast(0))
         val lastVisible = (firstVisible + visibleCount - 1).coerceAtMost(lines.lastIndex)
         val rendered = SpannableStringBuilder()
-        progressSpan = null
+        progressSpans.clear()
 
         for (lineIndex in firstVisible..lastVisible) {
             if (rendered.isNotEmpty()) rendered.append("\n\n")
@@ -265,7 +255,6 @@ class TtmlKaraokeView @JvmOverloads constructor(
         }
 
         lastLineIndex = activeLine
-        lastActiveSyllableIndex = lines[activeLine].syllabus.indexOfLast { it.timeMs <= positionMs }
         lastRenderedMode = displayMode
         setText(rendered, BufferType.SPANNABLE)
     }
@@ -315,7 +304,6 @@ class TtmlKaraokeView @JvmOverloads constructor(
         if (syllables.isEmpty()) return
 
         var searchFrom = 0
-        val activeIndex = syllables.indexOfLast { it.timeMs <= positionMs }
         syllables.forEachIndexed { index, syllable ->
             val range = findSyllableRange(line.text, syllable, searchFrom) ?: return@forEachIndexed
             searchFrom = range.last + 1
@@ -328,25 +316,28 @@ class TtmlKaraokeView @JvmOverloads constructor(
                 line.durationMs > 0L -> line.timeMs + line.durationMs
                 else -> syllable.timeMs
             }
-
-            when {
-                index < activeIndex || (index == activeIndex && endMs > syllable.timeMs && positionMs >= endMs) -> {
-                    rendered.setSpan(ForegroundColorSpan(highlightColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    rendered.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-                index == activeIndex && endMs > syllable.timeMs -> {
-                    val fraction = ((positionMs - syllable.timeMs).toFloat() /
-                        (endMs - syllable.timeMs).toFloat()).coerceIn(0f, 1f)
-                    val span = KaraokeProgressSpan(highlightColor, fraction)
-                    rendered.setSpan(span, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    rendered.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    progressSpan = span
-                    progressSpanStartMs = syllable.timeMs
-                    progressSpanEndMs = endMs
-                }
-            }
+            val span = KaraokeProgressSpan(
+                highlightColor,
+                progressFraction(positionMs, syllable.timeMs, endMs)
+            )
+            rendered.setSpan(span, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            rendered.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            progressSpans.add(TimedProgressSpan(span, syllable.timeMs, endMs))
         }
     }
+
+    private fun progressFraction(positionMs: Long, startMs: Long, endMs: Long): Float {
+        if (positionMs < startMs) return 0f
+        if (endMs <= startMs || positionMs >= endMs) return 1f
+        return ((positionMs - startMs).toFloat() / (endMs - startMs).toFloat())
+            .coerceIn(0f, 1f)
+    }
+
+    private data class TimedProgressSpan(
+        val span: KaraokeProgressSpan,
+        val startMs: Long,
+        val endMs: Long
+    )
 
     private fun transliterationForLine(index: Int, line: TtmlLine): String? {
         line.transliteration?.takeIf { it.isNotBlank() }?.let { return it }
