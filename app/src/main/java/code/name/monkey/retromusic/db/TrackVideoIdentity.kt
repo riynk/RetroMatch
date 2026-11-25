@@ -6,12 +6,12 @@ import java.text.Normalizer
 import java.util.Locale
 
 /**
- * Metadata fingerprint independent of MediaStore's row ID or file path.
+ * Metadata fingerprint used as a secondary lookup alias, never as the permanent track key.
  * This is not an immutable recording ID: changes to title, artist, album, or
  * duration produce a different key. Returns null when title/artist are missing.
  */
 object TrackVideoIdentity {
-    fun create(
+    fun fingerprint(
         title: String?,
         artist: String?,
         album: String?,
