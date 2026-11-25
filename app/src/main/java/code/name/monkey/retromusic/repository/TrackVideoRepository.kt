@@ -76,7 +76,7 @@ class RealTrackVideoRepository(
         durationMs: Long
     ): String? = identityMutex.withLock {
         val songId = mediaStoreSongId?.takeIf { it > 0L }
-        val fingerprint = TrackVideoIdentity.create(title, artist, album, durationMs)
+        val fingerprint = TrackVideoIdentity.fingerprint(title, artist, album, durationMs)
 
         // The same MediaStore row survives ordinary tag edits. Keep its UUID and
         // refresh the metadata alias rather than creating a new track identity.
@@ -84,7 +84,7 @@ class RealTrackVideoRepository(
             trackIdentityDao.byMediaStoreSongId(songId)?.let { existing ->
                 trackIdentityDao.update(
                     existing.copy(
-                        metadataFingerprint = fingerprint,
+                        metadataFingerprint = fingerprint ?: existing.metadataFingerprint,
                         updatedAt = System.currentTimeMillis()
                     )
                 )
