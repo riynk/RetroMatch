@@ -216,7 +216,10 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
 
     override fun onUpdateProgressViews(progress: Int, total: Int) {
         binding.lyricsView.updateTime(progress.toLong())
-        if (binding.ttmlLyricsView.isVisible) binding.ttmlLyricsView.updateTime(progress.toLong())
+        if (binding.ttmlLyricsView.isVisible) {
+            binding.ttmlLyricsView.setPlaybackRunning(MusicPlayerRemote.isPlaying)
+            binding.ttmlLyricsView.updateTime(progress.toLong())
+        }
     }
 
     private fun setupViews() {
@@ -595,15 +598,20 @@ class LyricsFragment : AbsMainActivityFragment(R.layout.fragment_lyrics),
 
     override fun onResume() {
         super.onResume()
+        if (_binding != null && binding.ttmlLyricsView.isVisible) {
+            binding.ttmlLyricsView.setPlaybackRunning(MusicPlayerRemote.isPlaying)
+        }
         updateHelper.start()
     }
 
     override fun onPause() {
         super.onPause()
         updateHelper.stop()
+        if (_binding != null) binding.ttmlLyricsView.setPlaybackRunning(false)
     }
 
     override fun onDestroyView() {
+        binding.ttmlLyricsView.setPlaybackRunning(false)
         super.onDestroyView()
         if (MusicPlayerRemote.playingQueue.isNotEmpty())
             mainActivity.expandPanel()
