@@ -13,7 +13,9 @@ data class TtmlSyllable(
     val timeMs: Long,
     val durationMs: Long,
     val isBackground: Boolean = false,
-    val continuesWord: Boolean = false  // true si esta sílaba continúa en la siguiente (sin espacio)
+    val continuesWord: Boolean = false, // true si esta sílaba continúa en la siguiente (sin espacio)
+    val startIndex: Int = -1,
+    val endIndex: Int = -1
 )
 
 /**
