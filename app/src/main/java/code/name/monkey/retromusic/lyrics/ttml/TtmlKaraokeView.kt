@@ -20,8 +20,8 @@ import androidx.core.content.res.ResourcesCompat
 import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLine
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLyrics
-import kotlin.math.abs
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.min
 
@@ -234,7 +234,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
 
             if (lineIndex == activeLine) {
                 appendSecondaryText(rendered, line, lineIndex)
-                applyWordProgress(rendered, line, lineStart, positionMs)
+                applyWordProgress(rendered, line, lineStart)
             } else {
                 rendered.setSpan(
                     ForegroundColorSpan(secondaryTextColor),
@@ -306,8 +306,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
     private fun applyWordProgress(
         rendered: SpannableStringBuilder,
         line: TtmlLine,
-        lineStart: Int,
-        positionMs: Long
+        lineStart: Int
     ) {
         val syllables = line.syllabus
         if (syllables.isEmpty()) return
