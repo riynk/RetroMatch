@@ -4,14 +4,13 @@
 package code.name.monkey.retromusic.lyrics.ttml
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.graphics.Typeface
+import android.icu.text.BreakIterator
+import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
-import android.text.style.ReplacementSpan
 import android.text.style.StyleSpan
 import android.util.AttributeSet
 import android.view.Choreographer
@@ -22,7 +21,8 @@ import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLine
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLyrics
 import kotlin.math.abs
-import kotlin.math.ceil
+import java.util.Locale
+import kotlin.math.floor
 import kotlin.math.min
 
 /**
@@ -194,12 +194,9 @@ class TtmlKaraokeView @JvmOverloads constructor(
             return
         }
 
-        // Update each timed word's paint fraction without replacing text or recalculating layout.
-        if (progressSpans.isEmpty()) return
-        progressSpans.forEach { timed ->
-            timed.span.setProgress(progressFraction(lastPositionMs, timed.startMs, timed.endMs))
-        }
-        invalidate()
+        // Update foreground-only spans on the existing TextView text. No text rebuild,
+        // custom glyph drawing, or layout recalculation is needed for karaoke progress.
+        updateProgressSpans(lastPositionMs)
     }
 
     private companion object {
@@ -254,9 +251,21 @@ class TtmlKaraokeView @JvmOverloads constructor(
             }
         }
 
+        val lineChanged = lastLineIndex >= 0 && activeLine != lastLineIndex
         lastLineIndex = activeLine
         lastRenderedMode = displayMode
         setText(rendered, BufferType.SPANNABLE)
+        updateProgressSpans(positionMs)
+        if (lineChanged) {
+            animate().cancel()
+            alpha = 0.72f
+            translationY = 5f * resources.displayMetrics.density
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(180L)
+                .start()
+        }
     }
 
     private fun adaptiveVisibleLineCount(totalLines: Int): Int {
@@ -309,6 +318,8 @@ class TtmlKaraokeView @JvmOverloads constructor(
             searchFrom = range.last + 1
             val start = lineStart + range.first
             val end = lineStart + range.last + 1
+            if (end <= start) return@forEachIndexed
+
             val nextStart = syllables.getOrNull(index + 1)?.timeMs
             val endMs = when {
                 syllable.durationMs > 0L -> syllable.timeMs + syllable.durationMs
@@ -316,14 +327,60 @@ class TtmlKaraokeView @JvmOverloads constructor(
                 line.durationMs > 0L -> line.timeMs + line.durationMs
                 else -> syllable.timeMs
             }
-            val span = KaraokeProgressSpan(
-                highlightColor,
-                progressFraction(positionMs, syllable.timeMs, endMs)
+
+            val baseColor = if (syllable.isBackground) secondaryTextColor else currentTextColor
+            if (syllable.isBackground) {
+                // Keep harmony/background vocals visually distinct, as in LocalPlayer.
+                rendered.setSpan(RelativeSizeSpan(0.78f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                rendered.setSpan(StyleSpan(Typeface.ITALIC), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                rendered.setSpan(
+                    ForegroundColorSpan(secondaryTextColor),
+                    start,
+                    end,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            } else {
+                rendered.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+
+            progressSpans.add(
+                TimedProgressSpan(
+                    start = start,
+                    startMs = syllable.timeMs,
+                    endMs = endMs,
+                    boundaries = characterBoundaries(line.text, range.first, range.last + 1)
+                        .map { lineStart + it }
+                        .toIntArray(),
+                    baseColor = baseColor
+                )
             )
-            rendered.setSpan(span, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            rendered.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            progressSpans.add(TimedProgressSpan(span, syllable.timeMs, endMs))
         }
+    }
+
+    /**
+     * Android ICU keeps progress boundaries on grapheme clusters, not inside surrogate
+     * pairs, combining sequences, or emoji sequences.
+     */
+    private fun characterBoundaries(source: String, start: Int, end: Int): List<Int> {
+        val iterator = BreakIterator.getCharacterInstance(Locale.ROOT)
+        iterator.setText(source.substring(start, end))
+        val result = mutableListOf(start)
+        var boundary = iterator.next()
+        while (boundary != BreakIterator.DONE) {
+            result.add(start + boundary)
+            boundary = iterator.next()
+        }
+        if (result.lastOrNull() != end) result.add(end)
+        return result
+    }
+
+    private fun updateProgressSpans(positionMs: Long) {
+        val target = text as? Spannable ?: return
+        progressSpans.forEach { timed ->
+            val fraction = progressFraction(positionMs, timed.startMs, timed.endMs)
+            timed.update(target, fraction, highlightColor)
+        }
+        invalidate()
     }
 
     private fun progressFraction(positionMs: Long, startMs: Long, endMs: Long): Float {
@@ -333,11 +390,88 @@ class TtmlKaraokeView @JvmOverloads constructor(
             .coerceIn(0f, 1f)
     }
 
-    private data class TimedProgressSpan(
-        val span: KaraokeProgressSpan,
+    private class TimedProgressSpan(
+        private val start: Int,
         val startMs: Long,
-        val endMs: Long
-    )
+        val endMs: Long,
+        private val boundaries: IntArray,
+        private val baseColor: Int
+    ) {
+        private val completedColor = KaraokeColorSpan(baseColor)
+        private val partialColor = KaraokeColorSpan(baseColor)
+        private var completedEnd = start
+        private var partialStart = -1
+        private var partialEnd = -1
+
+        fun update(text: Spannable, fraction: Float, accentColor: Int) {
+            val clusterCount = (boundaries.size - 1).coerceAtLeast(0)
+            if (clusterCount == 0) return
+
+            val progress = fraction.coerceIn(0f, 1f) * clusterCount
+            val completedClusters = floor(progress).toInt().coerceIn(0, clusterCount)
+            val nextCompletedEnd = boundaries[completedClusters]
+            val partialAmount = if (completedClusters < clusterCount) {
+                (progress - completedClusters).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            val nextPartialStart = if (partialAmount > 0f) nextCompletedEnd else -1
+            val nextPartialEnd = if (partialAmount > 0f) boundaries[completedClusters + 1] else -1
+
+            if (completedEnd != nextCompletedEnd) {
+                text.removeSpan(completedColor)
+                if (nextCompletedEnd > start) {
+                    completedColor.applyColor(accentColor)
+                    text.setSpan(
+                        completedColor,
+                        start,
+                        nextCompletedEnd,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                } else {
+                    completedColor.applyColor(accentColor)
+                }
+                completedEnd = nextCompletedEnd
+            }
+
+            if (partialStart != nextPartialStart || partialEnd != nextPartialEnd) {
+                text.removeSpan(partialColor)
+                partialStart = nextPartialStart
+                partialEnd = nextPartialEnd
+                if (partialStart >= 0 && partialEnd > partialStart) {
+                    text.setSpan(partialColor, partialStart, partialEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+            if (partialAmount > 0f) {
+                partialColor.applyColor(blendColor(baseColor, accentColor, partialAmount))
+            }
+        }
+    }
+
+    private class KaraokeColorSpan(initialColor: Int) :
+        android.text.style.CharacterStyle(),
+        android.text.style.UpdateAppearance {
+        private var color: Int = initialColor
+
+        fun applyColor(value: Int) {
+            color = value
+        }
+
+        override fun updateDrawState(textPaint: android.text.TextPaint) {
+            textPaint.color = color
+        }
+    }
+
+    private fun blendColor(from: Int, to: Int, fraction: Float): Int {
+        val amount = fraction.coerceIn(0f, 1f)
+        val inverse = 1f - amount
+        return android.graphics.Color.argb(
+            (android.graphics.Color.alpha(from) * inverse + android.graphics.Color.alpha(to) * amount).toInt(),
+            (android.graphics.Color.red(from) * inverse + android.graphics.Color.red(to) * amount).toInt(),
+            (android.graphics.Color.green(from) * inverse + android.graphics.Color.green(to) * amount).toInt(),
+            (android.graphics.Color.blue(from) * inverse + android.graphics.Color.blue(to) * amount).toInt()
+        )
+    }
 
     private fun transliterationForLine(index: Int, line: TtmlLine): String? {
         line.transliteration?.takeIf { it.isNotBlank() }?.let { return it }
@@ -374,51 +508,4 @@ class TtmlKaraokeView @JvmOverloads constructor(
         return start until (start + visibleText.length).coerceAtMost(source.length)
     }
 
-    private class KaraokeProgressSpan(
-        private val accentColor: Int,
-        progress: Float
-    ) : ReplacementSpan() {
-        @Volatile
-        private var progress = progress
-
-        fun setProgress(value: Float) {
-            progress = value.coerceIn(0f, 1f)
-        }
-
-        override fun getSize(
-            paint: Paint,
-            text: CharSequence,
-            start: Int,
-            end: Int,
-            fm: Paint.FontMetricsInt?
-        ): Int {
-            if (fm != null) paint.getFontMetricsInt(fm)
-            return ceil(paint.measureText(text, start, end)).toInt()
-        }
-
-        override fun draw(
-            canvas: Canvas,
-            text: CharSequence,
-            start: Int,
-            end: Int,
-            x: Float,
-            top: Int,
-            y: Int,
-            bottom: Int,
-            paint: Paint
-        ) {
-            val width = paint.measureText(text, start, end)
-            val originalColor = paint.color
-            canvas.drawText(text, start, end, x, y.toFloat(), paint)
-            val currentProgress = progress
-            if (currentProgress > 0f && width > 0f) {
-                val save = canvas.save()
-                canvas.clipRect(x, top.toFloat(), x + width * currentProgress, bottom.toFloat())
-                paint.color = accentColor
-                canvas.drawText(text, start, end, x, y.toFloat(), paint)
-                canvas.restoreToCount(save)
-            }
-            paint.color = originalColor
-        }
-    }
 }
