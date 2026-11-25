@@ -235,7 +235,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
         var searchFrom = 0
         val activeIndex = syllables.indexOfLast { it.timeMs <= positionMs }
         syllables.forEachIndexed { index, syllable ->
-            val range = findWordRange(line.text, syllable.text, searchFrom) ?: return@forEachIndexed
+            val range = findSyllableRange(line.text, syllable, searchFrom) ?: return@forEachIndexed
             searchFrom = range.last + 1
             val start = lineStart + range.first
             val end = lineStart + range.last + 1
@@ -272,6 +272,23 @@ class TtmlKaraokeView @JvmOverloads constructor(
             TtmlTransliterator.toLatinOrNull(line.text).orEmpty()
         }
         return generated.takeIf { it.isNotBlank() }
+    }
+
+    private fun findSyllableRange(
+        source: String,
+        syllable: code.name.monkey.retromusic.model.lyrics.ttml.TtmlSyllable,
+        searchFrom: Int
+    ): IntRange? {
+        if (syllable.startIndex >= 0 && syllable.endIndex > syllable.startIndex &&
+            syllable.endIndex <= source.length
+        ) {
+            var start = syllable.startIndex.coerceAtLeast(searchFrom)
+            var end = syllable.endIndex
+            while (start < end && source[start].isWhitespace()) start++
+            while (end > start && source[end - 1].isWhitespace()) end--
+            if (end > start) return start until end
+        }
+        return findWordRange(source, syllable.text, searchFrom)
     }
 
     private fun findWordRange(source: String, timedText: String, searchFrom: Int): IntRange? {
