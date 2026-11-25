@@ -29,6 +29,25 @@ class TtmlParserTest {
     }
 
     @Test
+    fun recordsExactCharacterRangesForTimedSpans() {
+        val ttml = """
+            <tt xmlns="http://www.w3.org/ns/ttml"><body><div>
+              <p begin="00:00:01.000" end="00:00:02.000">
+                <span begin="00:00:01.000" end="00:00:01.300">Hel</span>
+                <span begin="00:00:01.300" end="00:00:01.600">lo </span>
+                <span begin="00:00:01.600" end="00:00:02.000">world</span>
+              </p>
+            </div></body></tt>
+        """.trimIndent()
+
+        val line = TtmlParser.parseTtml(ttml).lines.single()
+        assertEquals("Hello world", line.text)
+        assertEquals("Hel", line.text.substring(line.syllabus[0].startIndex, line.syllabus[0].endIndex))
+        assertEquals("lo ", line.text.substring(line.syllabus[1].startIndex, line.syllabus[1].endIndex))
+        assertEquals("world", line.text.substring(line.syllabus[2].startIndex, line.syllabus[2].endIndex))
+    }
+
+    @Test
     fun preservesSyllableFragmentsWithoutInventingWordSpaces() {
         val ttml = """
             <tt xmlns="http://www.w3.org/ns/ttml"><body><div>
