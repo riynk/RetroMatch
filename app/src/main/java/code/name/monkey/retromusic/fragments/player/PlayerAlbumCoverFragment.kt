@@ -201,8 +201,16 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
     override fun onResume() {
         super.onResume()
         maybeInitLyrics()
+        if (_binding != null && binding.ttmlLyricsView.isVisible) {
+            binding.ttmlLyricsView.setPlaybackRunning(MusicPlayerRemote.isPlaying)
+        }
         PreferenceManager.getDefaultSharedPreferences(requireContext())
             .registerOnSharedPreferenceChangeListener(this)
+    }
+
+    override fun onPause() {
+        if (_binding != null) binding.ttmlLyricsView.setPlaybackRunning(false)
+        super.onPause()
     }
 
     override fun onDestroyView() {
