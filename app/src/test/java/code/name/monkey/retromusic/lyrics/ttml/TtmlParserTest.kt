@@ -67,6 +67,25 @@ class TtmlParserTest {
     }
 
     @Test
+    fun preservesBackgroundVocalTimingAndCharacterRanges() {
+        val ttml = """
+            <tt xmlns="http://www.w3.org/ns/ttml"><body><div>
+              <p begin="00:00:01.000" end="00:00:03.000">
+                <span begin="00:00:01.000" end="00:00:02.000">Hello </span>
+                <span begin="00:00:02.000" end="00:00:03.000">(oh)</span>
+              </p>
+            </div></body></tt>
+        """.trimIndent()
+
+        val line = TtmlParser.parseTtml(ttml).lines.single()
+        assertEquals("Hello oh", line.text)
+        val backingVocal = line.syllabus.last()
+        assertTrue(backingVocal.isBackground)
+        assertEquals("oh", line.text.substring(backingVocal.startIndex, backingVocal.endIndex))
+        assertEquals(2_000L, backingVocal.timeMs)
+    }
+
+    @Test
     fun parsesEmptyAndMalformedDocumentsAsEmptyLyrics() {
         assertTrue(TtmlParser.parseTtml("").lines.isEmpty())
         assertTrue(TtmlParser.parseTtml("<tt><body>").lines.isEmpty())
