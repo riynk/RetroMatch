@@ -43,4 +43,14 @@
             app:lrcTimelineColor="@color/transparent"
             tools:visibility="visible" />
     </com.bosphere.fadingedgelayout.FadingEdgeLayout>
+
+    <code.name.monkey.retromusic.lyrics.ttml.TtmlKaraokeView
+        android:id="@+id/ttmlLyricsView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:textSize="30sp"
+        android:visibility="gone" />
 </FrameLayout>
