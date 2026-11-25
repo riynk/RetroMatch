@@ -129,12 +129,15 @@ object TtmlParser {
                                 .replace(")", "")
                             if (cleanedText.isNotEmpty()) {
                                 val continuesWord = !cleanedText.endsWithWhitespace()
+                                val startIndex = textBuilder.length
+                                textBuilder.append(cleanedText)
                                 val cleaned = backgroundSyllable.copy(
                                     text = cleanedText,
-                                    continuesWord = continuesWord
+                                    continuesWord = continuesWord,
+                                    startIndex = startIndex,
+                                    endIndex = textBuilder.length
                                 )
                                 syllabus.add(cleaned)
-                                textBuilder.append(cleanedText)
                             }
                             if (syllable.text.endsWith(")")) insideParenthesis = false
                         }
