@@ -202,6 +202,17 @@ class TtmlKaraokeView @JvmOverloads constructor(
     private companion object {
         const val CLOCK_SNAP_MS = 400.0
         const val CLOCK_BLEND_MS = 250.0
+
+        fun blendColor(from: Int, to: Int, fraction: Float): Int {
+            val amount = fraction.coerceIn(0f, 1f)
+            val inverse = 1f - amount
+            return android.graphics.Color.argb(
+                (android.graphics.Color.alpha(from) * inverse + android.graphics.Color.alpha(to) * amount).toInt(),
+                (android.graphics.Color.red(from) * inverse + android.graphics.Color.red(to) * amount).toInt(),
+                (android.graphics.Color.green(from) * inverse + android.graphics.Color.green(to) * amount).toInt(),
+                (android.graphics.Color.blue(from) * inverse + android.graphics.Color.blue(to) * amount).toInt()
+            )
+        }
     }
 
     private fun renderLyrics(positionMs: Long) {
@@ -459,17 +470,6 @@ class TtmlKaraokeView @JvmOverloads constructor(
         override fun updateDrawState(textPaint: android.text.TextPaint) {
             textPaint.color = color
         }
-    }
-
-    private fun blendColor(from: Int, to: Int, fraction: Float): Int {
-        val amount = fraction.coerceIn(0f, 1f)
-        val inverse = 1f - amount
-        return android.graphics.Color.argb(
-            (android.graphics.Color.alpha(from) * inverse + android.graphics.Color.alpha(to) * amount).toInt(),
-            (android.graphics.Color.red(from) * inverse + android.graphics.Color.red(to) * amount).toInt(),
-            (android.graphics.Color.green(from) * inverse + android.graphics.Color.green(to) * amount).toInt(),
-            (android.graphics.Color.blue(from) * inverse + android.graphics.Color.blue(to) * amount).toInt()
-        )
     }
 
     private fun transliterationForLine(index: Int, line: TtmlLine): String? {
