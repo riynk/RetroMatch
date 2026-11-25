@@ -138,7 +138,7 @@ class RealTrackVideoRepository(
         val occupied = trackIdentityDao.byMediaStoreSongId(newMediaStoreSongId)
         if (occupied != null && occupied.trackKey != trackKey) return@withLock false
 
-        val fingerprint = TrackVideoIdentity.create(title, artist, album, durationMs)
+        val fingerprint = TrackVideoIdentity.fingerprint(title, artist, album, durationMs)
         trackIdentityDao.update(
             identity.copy(
                 mediaStoreSongId = newMediaStoreSongId,
