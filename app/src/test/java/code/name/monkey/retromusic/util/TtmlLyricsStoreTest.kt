@@ -31,6 +31,27 @@ class TtmlLyricsStoreTest {
     }
 
     @Test
+    fun discoversAndCachesAdjacentTtmlSidecarAutomatically() {
+        val musicDirectory = temporaryFolder.newFolder("music")
+        val cacheDirectory = temporaryFolder.newFolder("lyrics-cache")
+        val audioFile = java.io.File(musicDirectory, "sidecar-track.flac")
+        assertTrue(audioFile.createNewFile())
+        val sidecar = java.io.File(musicDirectory, "sidecar-track.ttml")
+        sidecar.writeText(validTtml, Charsets.UTF_8)
+
+        val store = TtmlLyricsStore(cacheDirectory)
+        val lyrics = store.read(audioFile.absolutePath)
+
+        assertNotNull(lyrics)
+        assertEquals("Hello world", lyrics!!.lines.single().text)
+        // A second read must succeed from the managed cache even after the sidecar
+        // is no longer available to the app.
+        assertTrue(sidecar.delete())
+        assertEquals("Hello world", store.read(audioFile.absolutePath)!!.lines.single().text)
+        assertEquals(1, cacheDirectory.listFiles()?.size)
+    }
+
+    @Test
     fun preservesSyllableTimingForAWordSplitAcrossSpans() {
         val store = TtmlLyricsStore(temporaryFolder.root)
         val ttml = validTtml.replace("Hello ", "Hel").replace("world", "lo world")
