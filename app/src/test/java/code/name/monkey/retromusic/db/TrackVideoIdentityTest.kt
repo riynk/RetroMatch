@@ -9,21 +9,21 @@ import org.junit.Test
 
 class TrackVideoIdentityTest {
     @Test
-    fun trackKeyIgnoresCaseAndRepeatedWhitespace() {
-        val first = TrackVideoIdentity.create("  Blue  Train ", "John Coltrane", "Blue Train", 60000)
+    fun metadataFingerprintIgnoresCaseAndRepeatedWhitespace() {
+        val first = TrackVideoIdentity.fingerprint("  Blue  Train ", "John Coltrane", "Blue Train", 60000)
         val second = TrackVideoIdentity.create("blue train", " JOHN   COLTRANE ", "blue train", 60000)
         assertEquals(first, second)
     }
 
     @Test
-    fun trackKeyChangesWhenDurationChanges() {
+    fun metadataFingerprintChangesWhenDurationChanges() {
         val first = TrackVideoIdentity.create("Blue Train", "John Coltrane", "Blue Train", 60000)
         val second = TrackVideoIdentity.create("Blue Train", "John Coltrane", "Blue Train", 61000)
         assertNotEquals(first, second)
     }
 
     @Test
-    fun trackKeyRequiresTitleAndArtist() {
+    fun metadataFingerprintRequiresTitleAndArtist() {
         assertNull(TrackVideoIdentity.create("", "Artist", "Album", 60000))
         assertNull(TrackVideoIdentity.create("Title", null, "Album", 60000))
     }
