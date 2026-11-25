@@ -65,7 +65,8 @@ internal class TtmlLyricsStore(private val directory: File) {
         return try {
             TtmlParser.parseTtml(file.readText(Charsets.UTF_8))
                 .takeIf { it.lines.isNotEmpty() }
-        } catch (_: IOException) {
+        } catch (_: Exception) {
+            // A neighboring sidecar may be blocked by scoped storage or revoked access.
             null
         }
     }
