@@ -23,7 +23,8 @@ import androidx.room.RoomDatabase
         SongEntity::class,
         HistoryEntity::class,
         PlayCountEntity::class,
-        TrackVideoEntity::class
+        TrackVideoEntity::class,
+        TrackIdentityEntity::class
     ],
     version = 25,
     exportSchema = false
@@ -33,4 +34,5 @@ abstract class RetroDatabase : RoomDatabase() {
     abstract fun playCountDao(): PlayCountDao
     abstract fun historyDao(): HistoryDao
     abstract fun trackVideoDao(): TrackVideoDao
+    abstract fun trackIdentityDao(): TrackIdentityDao
 }
