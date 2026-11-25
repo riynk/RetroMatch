@@ -41,7 +41,7 @@ class TrackVideoRepositoryTest {
         assertNotNull(original)
         assertEquals(original, edited)
         assertEquals(
-            TrackVideoIdentity.create("Corrected title", "Artist", "Album", 180_000L),
+            TrackVideoIdentity.fingerprint("Corrected title", "Artist", "Album", 180_000L),
             identities.byTrackKey(original!!)?.metadataFingerprint
         )
     }
