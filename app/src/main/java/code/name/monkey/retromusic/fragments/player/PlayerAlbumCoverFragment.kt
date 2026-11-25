@@ -153,7 +153,7 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentPlayerAlbumCoverBinding.bind(view)
         setupViewPager()
-        progressViewUpdateHelper = MusicProgressViewUpdateHelper(this, 80, 1000)
+        progressViewUpdateHelper = MusicProgressViewUpdateHelper(this, 33, 1000)
         maybeInitLyrics()
         lrcView.apply {
             setDraggable(true) { time ->
