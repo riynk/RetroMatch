@@ -34,6 +34,31 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
         )
         database.execSQL(
             """
+            CREATE TABLE IF NOT EXISTS track_identity (
+                track_key TEXT NOT NULL,
+                media_store_song_id INTEGER,
+                metadata_fingerprint TEXT,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY(track_key)
+            )
+            """.trimIndent()
+        )
+        database.execSQL(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS
+            index_track_identity_media_store_song_id
+            ON track_identity(media_store_song_id)
+            """.trimIndent()
+        )
+        database.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS
+            index_track_identity_metadata_fingerprint
+            ON track_identity(metadata_fingerprint)
+            """.trimIndent()
+        )
+        database.execSQL(
+            """
             CREATE UNIQUE INDEX IF NOT EXISTS
             index_track_video_track_key_video_uri
             ON track_video(track_key, video_uri)
