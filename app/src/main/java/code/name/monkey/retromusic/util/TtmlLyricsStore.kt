@@ -78,6 +78,8 @@ internal class TtmlLyricsStore(private val directory: File) {
         File(directory, LyricsFileKey.create(audioPath).removeSuffix(".lrc") + ".ttml")
 
     companion object {
+        private const val MAX_FILE_BYTES = 2L * 1024L * 1024L
+
         fun appStore(): TtmlLyricsStore {
             val context = App.getContext()
             val directory = context.getExternalFilesDir("lyrics")
