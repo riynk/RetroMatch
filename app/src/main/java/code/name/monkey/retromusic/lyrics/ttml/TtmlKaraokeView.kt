@@ -14,13 +14,16 @@ import android.text.style.RelativeSizeSpan
 import android.text.style.ReplacementSpan
 import android.text.style.StyleSpan
 import android.util.AttributeSet
+import android.view.Choreographer
 import android.view.Gravity
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.res.ResourcesCompat
 import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLine
 import code.name.monkey.retromusic.model.lyrics.ttml.TtmlLyrics
+import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.min
 
 /**
  * Keeps a stable text layout while updating only the active word's paint progress.
@@ -45,6 +48,13 @@ class TtmlKaraokeView @JvmOverloads constructor(
     private var progressSpan: KaraokeProgressSpan? = null
     private var progressSpanStartMs = 0L
     private var progressSpanEndMs = 0L
+    private var playbackRunning = false
+    private var frameCallback: Choreographer.FrameCallback? = null
+    private var lastFrameNanos = 0L
+    private var interpolatedPositionMs = 0.0
+    private var clockDriftMs = 0.0
+    private var clockInitialized = false
+    private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
     private val generatedTransliterations = mutableMapOf<Int, String>()
 
     init {
@@ -100,7 +110,72 @@ class TtmlKaraokeView @JvmOverloads constructor(
         renderLyrics(0L)
     }
 
+    fun setPlaybackRunning(running: Boolean) {
+        playbackRunning = running
+        if (running && isAttachedToWindow) {
+            startFrameClock()
+        } else {
+            stopFrameClock()
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (playbackRunning) startFrameClock()
+    }
+
+    override fun onDetachedFromWindow() {
+        stopFrameClock()
+        super.onDetachedFromWindow()
+    }
+
+    private fun startFrameClock() {
+        if (frameCallback != null || !playbackRunning || !isAttachedToWindow) return
+        lastFrameNanos = 0L
+        val callback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (!playbackRunning || !isAttachedToWindow) {
+                    frameCallback = null
+                    lastFrameNanos = 0L
+                    return
+                }
+                if (lastFrameNanos != 0L && clockInitialized) {
+                    val elapsedMs = (frameTimeNanos - lastFrameNanos) / 1_000_000.0
+                    val correction = clockDriftMs * min(1.0, elapsedMs / CLOCK_BLEND_MS)
+                    clockDriftMs -= correction
+                    interpolatedPositionMs += elapsedMs + correction
+                    renderAt(interpolatedPositionMs.toLong())
+                }
+                lastFrameNanos = frameTimeNanos
+                choreographer.postFrameCallback(this)
+            }
+        }
+        frameCallback = callback
+        choreographer.postFrameCallback(callback)
+    }
+
+    private fun stopFrameClock() {
+        frameCallback?.let(choreographer::removeFrameCallback)
+        frameCallback = null
+        lastFrameNanos = 0L
+    }
+
     fun updateTime(positionMs: Long) {
+        val reported = positionMs.coerceAtLeast(0L)
+        if (!clockInitialized || !playbackRunning ||
+            abs(reported - interpolatedPositionMs) >= CLOCK_SNAP_MS
+        ) {
+            interpolatedPositionMs = reported.toDouble()
+            clockDriftMs = 0.0
+            clockInitialized = true
+        } else {
+            // Blend small player-reported corrections instead of jumping the lyric fill.
+            clockDriftMs = reported - interpolatedPositionMs
+        }
+        renderAt(interpolatedPositionMs.toLong())
+    }
+
+    private fun renderAt(positionMs: Long) {
         lastPositionMs = positionMs.coerceAtLeast(0L)
         val lines = lyrics?.lines ?: run {
             text = null
@@ -122,8 +197,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
             return
         }
 
-        // Do not replace TextView text on every tick: that forces layout/measurement
-        // repeatedly and is a major source of visible karaoke jitter.
+        // The frame clock changes only the active span's paint progress; text/layout stay stable.
         val span = progressSpan ?: return
         val fraction = if (progressSpanEndMs > progressSpanStartMs) {
             ((lastPositionMs - progressSpanStartMs).toFloat() /
@@ -133,6 +207,11 @@ class TtmlKaraokeView @JvmOverloads constructor(
         }
         span.setProgress(fraction)
         invalidate()
+    }
+
+    private companion object {
+        const val CLOCK_SNAP_MS = 400.0
+        const val CLOCK_BLEND_MS = 250.0
     }
 
     private fun renderLyrics(positionMs: Long) {
