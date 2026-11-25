@@ -155,14 +155,22 @@ object TtmlParser {
             }
         }
 
-        val lineText = textBuilder.toString().trim()
+        val rawLineText = textBuilder.toString()
+        val leadingWhitespace = rawLineText.length - rawLineText.trimStart().length
+        val lineText = rawLineText.trim()
         if (lineText.isEmpty() && syllabus.isEmpty()) return null
+        val rangedSyllables = syllabus.map { syllable ->
+            syllable.copy(
+                startIndex = (syllable.startIndex - leadingWhitespace).coerceAtLeast(0),
+                endIndex = (syllable.endIndex - leadingWhitespace).coerceAtMost(lineText.length)
+            )
+        }
 
         return TtmlLine(
             timeMs = timeMs,
             durationMs = (endMs - timeMs).coerceAtLeast(0L),
             text = lineText,
-            syllabus = syllabus,
+            syllabus = rangedSyllables,
             translation = translation?.takeIf { it.isNotBlank() },
             transliteration = transliteration?.takeIf { it.isNotBlank() }
         )
