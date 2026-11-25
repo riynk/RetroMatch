@@ -36,6 +36,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
 
     private var lyrics: TtmlLyrics? = null
     private var lastLineIndex = -1
+    private var lastActiveSyllableIndex = -1
     private var lastRenderedMode: DisplayMode? = null
     private var highlightColor: Int = currentTextColor
     private var secondaryTextColor: Int = currentTextColor
@@ -113,7 +114,10 @@ class TtmlKaraokeView @JvmOverloads constructor(
         }
 
         val activeLine = lines.indexOfLast { it.timeMs <= lastPositionMs }.coerceAtLeast(0)
-        if (activeLine != lastLineIndex || displayMode != lastRenderedMode) {
+        val activeSyllable = lines[activeLine].syllabus.indexOfLast { it.timeMs <= lastPositionMs }
+        if (activeLine != lastLineIndex || activeSyllable != lastActiveSyllableIndex ||
+            displayMode != lastRenderedMode
+        ) {
             renderLyrics(lastPositionMs)
             return
         }
@@ -179,6 +183,7 @@ class TtmlKaraokeView @JvmOverloads constructor(
         }
 
         lastLineIndex = activeLine
+        lastActiveSyllableIndex = lines[activeLine].syllabus.indexOfLast { it.timeMs <= positionMs }
         lastRenderedMode = displayMode
         setText(rendered, BufferType.SPANNABLE)
     }
