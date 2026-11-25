@@ -40,12 +40,33 @@ internal class TtmlLyricsStore(private val directory: File) {
 
     fun read(audioPath: String): TtmlLyrics? {
         if (audioPath.isBlank()) return null
-        val file = fileFor(audioPath)
-        if (!file.isFile) return null
+
+        // Prefer the app-managed copy. It remains available even when Android does
+        // not grant direct access to the audio folder's neighboring files.
+        val managedFile = fileFor(audioPath)
+        readTtmlFile(managedFile)?.let { return it }
+
+        // LocalPlayer source behavior: discover a same-basename TTML sidecar next
+        // to the audio file automatically. Scoped-storage/SAF restrictions may
+        // make this unavailable; in that case the managed copy remains the source.
+        val audioFile = File(audioPath)
+        val parent = audioFile.parentFile ?: return null
+        val sidecar = File(parent, "${audioFile.nameWithoutExtension}.ttml")
+        val parsed = readTtmlFile(sidecar) ?: return null
+
+        // Cache a readable sidecar in app-private storage so subsequent playback
+        // does not depend on continued access to the shared music directory.
+        runCatching { save(audioPath, sidecar.readText(Charsets.UTF_8)) }
+        return parsed
+    }
+
+    private fun readTtmlFile(file: File): TtmlLyrics? {
+        if (!file.isFile || file.length() > MAX_FILE_BYTES) return null
         return try {
             TtmlParser.parseTtml(file.readText(Charsets.UTF_8))
                 .takeIf { it.lines.isNotEmpty() }
-        } catch (_: IOException) {
+        } catch (_: Exception) {
+            // A neighboring sidecar may be blocked by scoped storage or revoked access.
             null
         }
     }
@@ -57,6 +78,8 @@ internal class TtmlLyricsStore(private val directory: File) {
         File(directory, LyricsFileKey.create(audioPath).removeSuffix(".lrc") + ".ttml")
 
     companion object {
+        private const val MAX_FILE_BYTES = 2L * 1024L * 1024L
+
         fun appStore(): TtmlLyricsStore {
             val context = App.getContext()
             val directory = context.getExternalFilesDir("lyrics")

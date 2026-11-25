@@ -101,6 +101,7 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
             if (_binding == null || MusicPlayerRemote.currentSong.id != song.id) return@launch
 
             if (ttml != null) {
+                binding.ttmlLyricsView.setPlaybackRunning(MusicPlayerRemote.isPlaying)
                 binding.ttmlLyricsView.setKaraokeHighlightColor(accentColor())
                 binding.ttmlLyricsView.setLyrics(ttml)
                 binding.ttmlLyricsView.isVisible = true
@@ -111,6 +112,7 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
                 return@launch
             }
 
+            binding.ttmlLyricsView.setPlaybackRunning(false)
             binding.ttmlLyricsView.setLyrics(null)
             binding.ttmlLyricsView.isVisible = false
             binding.viewPager.isVisible = true
@@ -144,6 +146,7 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
     override fun onUpdateProgressViews(progress: Int, total: Int) {
         binding.lyricsView.updateTime(progress.toLong())
         if (binding.ttmlLyricsView.isVisible) {
+            binding.ttmlLyricsView.setPlaybackRunning(MusicPlayerRemote.isPlaying)
             binding.ttmlLyricsView.updateTime(progress.toLong())
         }
     }
@@ -198,11 +201,20 @@ class PlayerAlbumCoverFragment : AbsMusicServiceFragment(R.layout.fragment_playe
     override fun onResume() {
         super.onResume()
         maybeInitLyrics()
+        if (_binding != null && binding.ttmlLyricsView.isVisible) {
+            binding.ttmlLyricsView.setPlaybackRunning(MusicPlayerRemote.isPlaying)
+        }
         PreferenceManager.getDefaultSharedPreferences(requireContext())
             .registerOnSharedPreferenceChangeListener(this)
     }
 
+    override fun onPause() {
+        if (_binding != null) binding.ttmlLyricsView.setPlaybackRunning(false)
+        super.onPause()
+    }
+
     override fun onDestroyView() {
+        binding.ttmlLyricsView.setPlaybackRunning(false)
         super.onDestroyView()
         PreferenceManager.getDefaultSharedPreferences(requireContext())
             .unregisterOnSharedPreferenceChangeListener(this)
