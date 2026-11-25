@@ -14,13 +14,13 @@ If an in-app adapter is unavailable, blocked, or cannot play the selected source
 
 Room is the canonical source of video associations. A track may have multiple entries: official music video, lyric video, live performance, visualizer, or other. Each entry stores a canonical `trackKey`, optional MediaStore song ID, URI, source type, video type, provider, official flag, language tag, lyric/video sync offset, and creation time.
 
-The MediaStore ID and file path are not canonical identities. `TrackVideoIdentity` currently derives a SHA-256 metadata fingerprint from normalized title, artist, album, and duration. It is independent of MediaStore IDs and file paths, but it is not immutable: editing any of those metadata fields changes the key. Duplicate recordings with identical metadata may still share a key. Before shipping association management, the next identity phase must add a durable recording ID/alias strategy (prefer a trusted recording identifier when available, with explicit user-confirmed migration when metadata changes) so edits do not orphan video links.
+The MediaStore ID and file path are not canonical identities. `track_identity` assigns each recording an app-owned UUID. `media_store_song_id` and the normalized SHA-256 metadata fingerprint are lookup aliases, not the canonical key. A metadata edit on the same MediaStore row updates the fingerprint while retaining the UUID. A fingerprint can claim an identity without a MediaStore ID only when it is unambiguous and unclaimed. Two different indexed MediaStore rows with identical metadata receive separate UUIDs. A moved/reindexed file with a new MediaStore ID is not silently merged by metadata alone; the repository exposes an explicit relink operation so the user can confirm that association. This avoids both metadata-edit orphaning and accidental merging of duplicate recordings.
 
 Remote references are HTTPS URLs. Local references are persisted `content://` URIs; the UI must request and retain persistable URI permission where the document provider supports it. Raw filesystem paths are not accepted.
 
 ## Layers
 
-1. **Persistence** — Room entity and DAO; migrations are additive and preserve existing playlist/history data.
+1. **Persistence** — Room video and track-identity entities/DAOs; the 24 → 25 migration is additive and preserves existing playlist/history data.
 2. **Repository** — owns association CRUD, URI validation, ordering, and track-key lookup.
 3. **Provider adapters** — declare whether a source supports in-app playback, external intents, or neither. Provider policy and terms take precedence over a generic embedded web view.
 4. **Playback coordinator** — routes to an allowed in-app adapter or external Android intent. It does not create another audio service or replace the existing audio playback service.
@@ -44,7 +44,8 @@ The database remains authoritative. A future tag adapter may import/export `RETR
 - Existing version-24 databases migrate without losing existing data.
 - Multiple videos can be associated with one track; duplicate URI entries for the same track are rejected.
 - Invalid schemes and local file paths are rejected.
-- MediaStore ID changes do not change the metadata fingerprint when track metadata is unchanged.
-- Metadata edits must not silently orphan video links; the durable identity/alias phase is required before user-facing release.
+- A metadata edit on the same MediaStore row retains the app-owned UUID.
+- Duplicate MediaStore rows with identical metadata are not automatically merged.
+- A changed MediaStore ID requires an explicit relink when its previous alias is already claimed.
 - Provider restrictions are enforced and external fallback is explicit.
 - No second audio playback service is introduced.
